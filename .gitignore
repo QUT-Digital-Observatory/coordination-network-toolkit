@@ -1,0 +1,18 @@
+# Environment config
+.python-version
+
+# Python artefacts, build artefacts, test artefacts
+.eggs/*
+*.egg-info/*
+dist/*
+build/*
+.nox/*
+__pycache__/*
+
+# IDE artefacts
+.idea/*
+
+# Scratch data
+scratch/*.csv
+scratch/*.db
+scratch/*.graphml
