@@ -10,8 +10,8 @@ install_requires = [
 extras_require = {
     "development": [
         "nox",
-        "sphinx",
-        "pytest"
+        "pytest",
+        "pip-tools"
     ]
 }
 
