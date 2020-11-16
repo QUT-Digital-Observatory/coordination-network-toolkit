@@ -4,7 +4,8 @@ include pyproject.toml
 include *.md
 
 # Include the license file
-# include LICENSE.txt
+include LICENSE
 
 # Include example data
 include example.csv
+include tests/data/coretweet_test_input.csv
