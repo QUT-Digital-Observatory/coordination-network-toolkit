@@ -9,6 +9,6 @@ chardet==3.0.4            # via requests
 decorator==4.4.2          # via networkx
 idna==2.10                # via requests
 networkx==2.5             # via coordination_network_toolkit (setup.py)
-regex==2020.9.27          # via coordination_network_toolkit (setup.py)
+regex==2019.11.1          # via coordination_network_toolkit (setup.py)
 requests==2.24.0          # via coordination_network_toolkit (setup.py)
 urllib3==1.25.10          # via coordination_network_toolkit (setup.py), requests

@@ -2,7 +2,7 @@ import setuptools
 
 install_requires = [
     "urllib3",
-    "regex",
+    "regex==2019.11.1",
     "requests",
     "networkx"
 ]
