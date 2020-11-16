@@ -25,7 +25,7 @@ setuptools.setup(
     description="Tools for computing networks of coordinated behaviour on social media",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://gitlab.com/digital-observatory/coordination_networks",
+    url="https://github.com/QUT-Digital-Observatory/coordination-network-toolkit",
     license='MIT',
     packages=setuptools.find_packages(),
     classifiers=[
