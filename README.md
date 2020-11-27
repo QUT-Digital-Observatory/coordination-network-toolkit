@@ -18,6 +18,11 @@ dependencies.
 
 `pip install coordination_network_toolkit`
 
+Once you have installed, you can use the toolkit in either of two ways:
+
+1. As a command-line tool (run `compute_networks --help` to find out how)
+2. As a Python library (`import coordination_network_toolkit`)
+
 
 ## Basic Usage
 
@@ -47,30 +52,30 @@ JSON format into the necessary format, including handling things like retweets, 
 urls, and extracting the text of the tweet. It will also handle deduplication, so if a
 tweet is  present more than once only the first instance will be recorded.
 
-    - `python -m coordination_network_toolkit processed_bananas.db preprocess --format twitter_json banana.json`
+    - `compute_networks processed_bananas.db preprocess --format twitter_json banana.json`
 
 3. Calculate a retweet network, saving the output to a graphml format that can be
 directly opened in a tool like (Gephi)[https://gephi.org]. These settings indicate that
 if two users have retweeted the same tweet within 60 seconds of each other, there is a
 potential link.
 
-    - `python -m coordination_network_toolkit processed_bananas.db compute co_retweet --time_window 60 --output_file bananas_retweet_60s.graphml --output_format graphml`
+    - `compute_networks processed_bananas.db compute co_retweet --time_window 60 --output_file bananas_retweet_60s.graphml --output_format graphml`
 
 3. Calculate a co-link network, again saving the output in graphml format. By default
 this will use the plain text of the URL for matching, so the output here will confuse
 urls that are shortened.
 
-    - `python -m coordination_network_toolkit processed_bananas.db compute co_link --time_window 60 --output_file bananas_colink_unresolved_60s.graphml --output_format graphml`
+    - `compute_networks processed_bananas.db compute co_link --time_window 60 --output_file bananas_colink_unresolved_60s.graphml --output_format graphml`
 
 4. Resolve collected URLs, to handle link shortening services. Note that this process
 is intentionally rate limited to resolve no more than 25 urls/second. Once resolved,
 URLs will not be retried, so you can safely run this command again.
 
-    - `python -m coordination_network_toolkit processed_bananas.db resolve_urls`
+    - `compute_networks processed_bananas.db resolve_urls`
 
 5. Calculate the co-link network, this time using the resolved urls.
 
-    - `python -m coordination_network_toolkit processed_bananas.db compute co_link --time_window 60 --output_file bananas_colink_resolved_60s.graphml --output_format graphml --resolved`
+    - `compute_networks processed_bananas.db compute co_link --time_window 60 --output_file bananas_colink_resolved_60s.graphml --output_format graphml --resolved`
 
 
 ### Python library usage example
