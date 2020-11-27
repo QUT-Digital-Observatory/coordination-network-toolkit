@@ -140,7 +140,7 @@ def preprocess_twitter_json_data(db_path: str, tweets: Iterable[str]):
                 # This will be populated only when similarity calculations are necessary
                 None,
                 # Twitter epoch in seconds
-                int((int(tweet["id"]) >> 22) / 1000),
+                (int(tweet["id"]) >> 22) / 1000,
             )
 
             db.execute(
