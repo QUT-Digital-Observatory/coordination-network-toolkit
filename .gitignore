@@ -8,6 +8,8 @@ dist/*
 build/*
 .nox/*
 __pycache__/*
+*/__pycache__/*
+
 
 # IDE artefacts
 .idea/*
