@@ -46,44 +46,46 @@ def preprocess_data(db_path: str, messages: Iterable):
 
     db = initialise_db(db_path)
 
-    db.execute("begin")
-    processed = (
-        (
-            message_id,
-            user_id,
-            username,
-            repost_id or None,
-            reply_id or None,
-            message,
-            len(message),
-            zlib.adler32(message.encode("utf8")),
-            # This will be populated only when similarity calculations are necessary
-            None,
-            int(timestamp),
-            urls.split(" ") if urls else [],
-        )
-        for message_id, user_id, username, repost_id, reply_id, message, timestamp, urls in messages
-    )
-
-    for row in processed:
-        db.execute(
-            "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            row[:-1],
+    try:
+        db.execute("begin")
+        processed = (
+            (
+                message_id,
+                user_id,
+                username,
+                repost_id or None,
+                reply_id or None,
+                message,
+                len(message),
+                zlib.adler32(message.encode("utf8")),
+                # This will be populated only when similarity calculations are necessary
+                None,
+                float(timestamp),
+                urls.split(" ") if urls else [],
+            )
+            for message_id, user_id, username, repost_id, reply_id, message, timestamp, urls in messages
         )
 
-        message_id, user_id = row[:2]
-        timestamp = row[-2]
+        for row in processed:
+            db.execute(
+                "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                row[:-1],
+            )
 
-        # Ignore url shared in reposts
-        if not row[3]:
-            for url in row[-1]:
-                db.execute(
-                    "insert or ignore into message_url values(?, ?, ?, ?)",
-                    (message_id, url, timestamp, user_id),
-                )
+            message_id, user_id = row[:2]
+            timestamp = row[-2]
 
-    db.execute("commit")
-    db.close()
+            # Ignore url shared in reposts
+            if not row[3]:
+                for url in row[-1]:
+                    db.execute(
+                        "insert or ignore into message_url values(?, ?, ?, ?)",
+                        (message_id, url, timestamp, user_id),
+                    )
+
+        db.execute("commit")
+    finally:
+        db.close()
 
 
 def preprocess_twitter_json_files(db_path: str, input_filenames: List[str]):
@@ -107,62 +109,64 @@ def preprocess_twitter_json_data(db_path: str, tweets: Iterable[str]):
 
     db = initialise_db(db_path)
 
-    db.execute("begin")
+    try:
+        db.execute("begin")
 
-    for raw_tweet in tweets:
+        for raw_tweet in tweets:
 
-        tweet = json.loads(raw_tweet)
+            tweet = json.loads(raw_tweet)
 
-        # Try grabbing the full_text field from the extended format, otherwise
-        # check if there's a extended_tweet object.
-        # print(sorted(tweet.keys()))
-        if "full_text" in tweet:
-            tweet_text = tweet["full_text"]
-        elif "extended_tweet" in tweet:
-            tweet_text = tweet["extended_tweet"]["full_text"]
-        else:
-            tweet_text = tweet["text"]
-
-        retweet = tweet.get("retweeted_status", {})
-
-        row = (
-            tweet["id_str"],
-            tweet["user"]["id_str"],
-            tweet["user"]["screen_name"],
-            retweet.get("id_str"),
-            tweet.get("in_reply_to_status_id_str", None),
-            tweet_text,
-            len(tweet_text),
-            zlib.adler32(tweet_text.encode("utf8")),
-            # This will be populated only when similarity calculations are necessary
-            None,
-            # Twitter epoch in seconds
-            int((int(tweet["id"]) >> 22) / 1000),
-        )
-
-        db.execute(
-            "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row,
-        )
-
-        # If it's a retweet, don't consider any of the urls as candidates
-        if not row[3]:
-            if retweet:
-                url_entities = retweet.get("extended_tweet", retweet)["entities"][
-                    "urls"
-                ]
+            # Try grabbing the full_text field from the extended format, otherwise
+            # check if there's a extended_tweet object.
+            # print(sorted(tweet.keys()))
+            if "full_text" in tweet:
+                tweet_text = tweet["full_text"]
+            elif "extended_tweet" in tweet:
+                tweet_text = tweet["extended_tweet"]["full_text"]
             else:
-                url_entities = tweet.get("extended_tweet", tweet)["entities"]["urls"]
+                tweet_text = tweet["text"]
 
-            message_id, user_id = row[:2]
-            timestamp = row[-1]
+            retweet = tweet.get("retweeted_status", {})
 
-            urls = [u["expanded_url"] for u in url_entities]
-            # Ignore urls shared in reposts
-            for url in urls:
-                db.execute(
-                    "insert or ignore into message_url values(?, ?, ?, ?)",
-                    (message_id, url, timestamp, user_id),
-                )
+            row = (
+                tweet["id_str"],
+                tweet["user"]["id_str"],
+                tweet["user"]["screen_name"],
+                retweet.get("id_str"),
+                tweet.get("in_reply_to_status_id_str", None),
+                tweet_text,
+                len(tweet_text),
+                zlib.adler32(tweet_text.encode("utf8")),
+                # This will be populated only when similarity calculations are necessary
+                None,
+                # Twitter epoch in seconds
+                (int(tweet["id"]) >> 22) / 1000,
+            )
 
-    db.execute("commit")
-    db.close()
+            db.execute(
+                "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row,
+            )
+
+            # If it's a retweet, don't consider any of the urls as candidates
+            if not row[3]:
+                if retweet:
+                    url_entities = retweet.get("extended_tweet", retweet)["entities"][
+                        "urls"
+                    ]
+                else:
+                    url_entities = tweet.get("extended_tweet", tweet)["entities"]["urls"]
+
+                message_id, user_id = row[:2]
+                timestamp = row[-1]
+
+                urls = [u["expanded_url"] for u in url_entities]
+                # Ignore urls shared in reposts
+                for url in urls:
+                    db.execute(
+                        "insert or ignore into message_url values(?, ?, ?, ?)",
+                        (message_id, url, timestamp, user_id),
+                    )
+
+        db.execute("commit")
+    finally:
+        db.close()
