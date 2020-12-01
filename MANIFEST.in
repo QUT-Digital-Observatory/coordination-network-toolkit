@@ -7,5 +7,5 @@ include *.md
 include LICENSE
 
 # Include example data
-include example.csv
+include examples/sample_data.csv
 include tests/data/coretweet_test_input.csv
