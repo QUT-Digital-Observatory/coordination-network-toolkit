@@ -7,7 +7,7 @@ in Twitter and other social media data.
 
 Social media activity doesn't occur in a vaccuum. Individuals on social media are often taking part in *coordinated activities* such as protest movements or interest-based communities. 
 
-Recently, social media has also been used by inauthentic actors to boost particular messages in line with political campaign goals or for commercial profit and scamming. This involves multiple accounts posting or reposting the same content, repeatedly and within a short time window (e.g. within 1 minute).
+Social media platforms are also used strategically to boost particular messages in line with political campaign goals or for commercial profit and scamming. This involves multiple accounts posting or reposting the same content, repeatedly and within a short time window (e.g. within 1 minute).
 
 This software provides a toolkit to detect coordinated activity on social media and to generate networks that map the actors and their relationships. It provides a general purpose toolkit for multiple types of coordinated activity on any type of social media platform.
 
@@ -19,7 +19,7 @@ Firstly, it includes functionality for *co-tweeting* and *co-retweeting* (Keller
 2. Co-tweet: posting identical text
 3. Co-similarity: posting similar text (Jaccard similarity or user-defined)
 4. Co-link: posting the same link
-Co-reply: replying to the same post
+5. Co-reply: replying to the same post
 
 Default time window is 60 seconds for all network types.
 
