@@ -15,10 +15,10 @@ Firstly, it includes functionality for *co-tweeting* and *co-retweeting* (Keller
 
 ### Five types of coordination networks
 
-Co-retweet: reposting the same post
-Co-tweet: posting identical text
-Co-similarity: posting similar text (Jaccard similarity or user-defined)
-Co-link: posting the same link
+1. Co-retweet: reposting the same post
+2. Co-tweet: posting identical text
+3. Co-similarity: posting similar text (Jaccard similarity or user-defined)
+4. Co-link: posting the same link
 Co-reply: replying to the same post
 
 Default time window is 60 seconds for all network types.
