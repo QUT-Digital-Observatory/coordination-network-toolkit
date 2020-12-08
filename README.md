@@ -5,8 +5,33 @@ in Twitter and other social media data.
 
 ## Rationale and Background
 
+Social media activity doesn't occur in a vaccuum. Individuals on social media are often taking part in *coordinated activities* such as protest movements or interest-based communities. 
+
+Recently, social media has also been used by inauthentic actors to boost particular messages in line with political campaign goals or for commercial profit and scamming. This involves multiple accounts posting or reposting the same content, repeatedly and within a short time window (e.g. within 1 minute).
+
+This software provides a toolkit to detect coordinated activity on social media and to generate networks that map the actors and their relationships. It provides a general purpose toolkit for multiple types of coordinated activity on any type of social media platform.
+
+Firstly, it includes functionality for *co-tweeting* and *co-retweeting* (Keller et al., 2019; Schafer et al., 2017), where accounts post exactly the same text (co-tweets) or repost the same post within a short time window (co-retweets). Secondly, it includes functionality for *co-link* analysis, where multiple accounts post the same URLs repeatedly and in a short time window of each other (Giglietto et al., 2020). Thirdly, it adds two new types of network types: *co-reply*, where accounts are replying to the same post repeatedly together; and *co-similarity*, where accounts post similar text (but not exact duplicates), which relaxes the strict assumption of co-tweeting. 
+
+### Five types of coordination networks
+
+Co-retweet: reposting the same post
+Co-tweet: posting identical text
+Co-similarity: posting similar text (Jaccard similarity or user-defined)
+Co-link: posting the same link
+Co-reply: replying to the same post
+
+Default time window is 60 seconds for all network types.
 
 ## Reading List
+
+Giglietto, F., Righetti, N., Rossi, L., & Marino, G. (2020). It takes a village to manipulate the media: coordinated link sharing behavior during 2018 and 2019 Italian elections. Information, Communication and Society, 1–25.
+
+Graham, T., Bruns, A., Zhu, G., & Campbell, R. (2020, in press). Like a virus: The coordinated spread of coronavirus disinformation. Report commissioned for the Centre for Responsible Technology.
+
+Keller, F. B., Schoch, D., Stier, S., & Yang, J. (2020). Political Astroturfing on Twitter: How to coordinate a disinformation Campaign. Political Communication, 37(2), 256-280.
+
+Schafer, F., Evert, S., & Heinrich, P. (2017). Japan’s 2014 General Election: Political Bots, Right-Wing Internet Activism, and Prime Minister Shinz Abe’s Hidden Nationalist Agenda. Big Data, 5(4), 294–309.
 
 
 ## Installation and Requirements
