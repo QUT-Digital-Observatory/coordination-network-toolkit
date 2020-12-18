@@ -5,7 +5,7 @@ in Twitter and other social media data.
 
 ## Rationale and Background
 
-<img src="https://i.ibb.co/qJVwBKR/coretweet-min-Weight2-coloured-By-Account-Status.png" alt="Network visualisation of a co-retweet network" width="400" height="400">
+<img src="https://i.ibb.co/qJVwBKR/coretweet-min-Weight2-coloured-By-Account-Status.png" alt="Network visualisation of a co-retweet network" width="400" height="400" align="right">
 
 Social media activity doesn't occur in a vaccuum. Individuals on social media are often taking part in *coordinated activities* such as protest movements or interest-based communities. 
 
