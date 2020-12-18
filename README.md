@@ -132,15 +132,10 @@ for g in nx.connected_components(similarity_graph):
 
 ### Twitter
 
-- JSON data from V1.1 of the Twitter API can be ingested directly.
+JSON data from V1.1 of the Twitter API can be ingested directly.
 
 
 ### CSV (All other platforms)
-
-. The files must be "
-             "CSV files with 5 columns in the following order: message_id, user_id, repost_id, "
-             "message_text and timestamp. The timestamp needs to be a unix epoch format number "
-             "seconds.
 
 To use the CSV ingest format, construct a CSV with a header and the following columns.
 The names of the columns don't matter but the order does.
