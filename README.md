@@ -5,7 +5,7 @@ in Twitter and other social media data.
 
 ## Rationale and Background
 
-<img align="right" src="https://github.com/QUT-Digital-Observatory/coordination-network-toolkit/blob/main/coretweet_minWeight2_colouredByAccountStatus.png">
+<img align="right" src="https://github.com/QUT-Digital-Observatory/coordination-network-toolkit/blob/main/coretweet_minWeight2_colouredByAccountStatus.png" alt="Network visualisation of a co-retweet network" width="300" height="300">
 Social media activity doesn't occur in a vaccuum. Individuals on social media are often taking part in *coordinated activities* such as protest movements or interest-based communities. 
 
 Social media platforms are also used strategically to boost particular messages in line with political campaign goals or for commercial profit and scamming. This involves multiple accounts posting or reposting the same content, repeatedly and within a short time window (e.g. within 1 minute).
