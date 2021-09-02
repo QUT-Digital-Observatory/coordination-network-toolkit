@@ -4,7 +4,8 @@ install_requires = [
     "urllib3",
     "regex==2019.11.1",
     "requests",
-    "networkx>=2.5"
+    "networkx>=2.5",
+    "twarc>=2.4.0",
 ]
 
 extras_require = {
