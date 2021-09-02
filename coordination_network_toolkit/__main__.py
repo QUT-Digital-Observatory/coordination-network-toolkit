@@ -78,8 +78,9 @@ def main():
         "--format",
         default="csv",
         choices=["csv", "twitter_json"],
-        help="The format of the input files, defaulting to CSV. See documentation for a"
-             " list of columns expected in CSV format."
+        help="The format of the input files, defaulting to CSV. "
+            "Twitter JSON format supports both V1.1 and V2 API formats. "
+            "See documentation for a list of columns expected in CSV format."
     )
 
     # resolve_urls subcommand

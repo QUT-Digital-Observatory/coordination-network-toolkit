@@ -58,7 +58,8 @@ Using this tool requires:
 1. Collecting data from the social media platform of choice
 2. Preparing or preprocessing the data into one of the formats the tool accepts:
 	- either a specific CSV format that works across all platforms OR
-	- using the platform native format (currently only Twitter JSON is supported)
+	- using the platform native format (currently Twitter JSON from both
+        V1.1 and V2 APIs, including the Twitter Academic track, are supported)
 3. Preprocessing the raw data into an SQLite database to setup the data structures for
    efficient computation of the different networks
 4. Generating the network of choice, storing the output in a specified file.
@@ -69,17 +70,18 @@ Using this tool requires:
 ### Worked example - CLI tool
 
 1. Collect Twitter data in the native Twitter JSON format using
-[twarc](https://github.com/docnow/twarc/)
+[twarc](https://github.com/docnow/twarc/), from either the V1.1 and V2 APIs
     
     - `twarc search '#banana' --output banana.json`
+    - `twarc2 search --limit 1000 --archive '#purple' purple.json  `
 
 2. Bring the data into a local database file called processed_bananas.db. The original
 data file is not modified in any way. The toolkit will handle processing the Twitter
-JSON format into the necessary format, including handling things like retweets, replies,
+JSON formats into the necessary format, including handling things like retweets, replies,
 urls, and extracting the text of the tweet. It will also handle deduplication, so if a
 tweet is  present more than once only the first instance will be recorded.
 
-    - `compute_networks processed_bananas.db preprocess --format twitter_json banana.json`
+    - `compute_networks processed_bananas.db preprocess --format twitter_json banana.json purple.json`
 
 3. Calculate a retweet network, saving the output to a graphml format that can be
 directly opened in a tool like (Gephi)[https://gephi.org]. These settings indicate that
@@ -133,7 +135,7 @@ for g in nx.connected_components(similarity_graph):
 
 ### Twitter
 
-JSON data from V1.1 of the Twitter API can be ingested directly.
+JSON data from V1.1 and V2 of the Twitter API can be ingested directly.
 
 
 ### CSV (All other platforms)
