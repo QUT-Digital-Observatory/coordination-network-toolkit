@@ -1,10 +1,12 @@
-import json
-import zlib
 import csv
+import json
+from typing import Iterable, List
+import zlib
+
+from twarc import ensure_flattened
 
 from coordination_network_toolkit.database import initialise_db
 
-from typing import Iterable, List
 
 
 def preprocess_csv_files(db_path: str, input_filenames: List[str]):
@@ -93,7 +95,12 @@ def preprocess_twitter_json_files(db_path: str, input_filenames: List[str]):
         # Skip the header
         print(f"Begin preprocessing {message_file} into {db_path}")
         with open(message_file, "r") as tweets:
-            preprocess_twitter_json_data(db_path, tweets)
+            try:
+                # Try v2 format
+                preprocess_twitter_v2_json_data(db_path, tweets)
+            except:
+                # Fallback to v1.1 format
+                preprocess_twitter_json_data(db_path, tweets)
 
         print(f"Done preprocessing {message_file} into {db_path}")
 
@@ -168,5 +175,79 @@ def preprocess_twitter_json_data(db_path: str, tweets: Iterable[str]):
                     )
 
         db.execute("commit")
+    except:
+        db.execute("rollback")
+        raise
+    finally:
+        db.close()
+
+
+def preprocess_twitter_v2_json_data(db_path: str, tweets: Iterable[str]):
+    """
+
+    Add messages to the dataset from the specified tweets in Twitter JSON format.
+
+    Tweets must be in Twitter JSON format as collected from the v1.1 JSON API.
+
+    """
+
+    db = initialise_db(db_path)
+
+    try:
+        db.execute("begin")
+
+        for page in tweets:
+
+            tweets = ensure_flattened(json.loads(page))
+
+            for tweet in tweets:
+
+                # Pick out referenced tweets
+                referenced_tweets = tweet.get("referenced_tweets", [])
+                retweeted_tweet_id, replied_to_id = None, None
+                for referenced_tweet in referenced_tweets:
+                    if referenced_tweet["type"] == "retweeted":
+                        retweeted_tweet_id = referenced_tweet["id"]
+                    if referenced_tweet["type"] == "replied_to":
+                        replied_to_id = referenced_tweet["id"]
+
+                row = (
+                    tweet["id"],
+                    tweet["author_id"],
+                    tweet["author"]["username"],
+                    retweeted_tweet_id,
+                    replied_to_id,
+                    tweet["text"],
+                    len(tweet["text"]),
+                    zlib.adler32(tweet["text"].encode("utf8")),
+                    # This will be populated only when similarity calculations are necessary
+                    None,
+                    # Twitter epoch in seconds
+                    (int(tweet["id"]) >> 22) / 1000,
+                )
+
+                db.execute(
+                    "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row,
+                )
+
+                # If it's a retweet, don't consider any of the urls as candidates
+                if not retweeted_tweet_id:
+                    url_entities = tweet.get("entities", {}).get("urls", [])
+
+                    message_id, user_id = row[:2]
+                    timestamp = row[-1]
+
+                    urls = [u["expanded_url"] for u in url_entities]
+                    # Ignore urls shared in reposts
+                    for url in urls:
+                        db.execute(
+                            "insert or ignore into message_url values(?, ?, ?, ?)",
+                            (message_id, url, timestamp, user_id),
+                        )
+
+        db.execute("commit")
+    except:
+        db.execute("rollback")
+        raise
     finally:
         db.close()
