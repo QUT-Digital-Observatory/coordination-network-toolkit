@@ -58,8 +58,10 @@ def preprocess_data(db_path: str, messages: Iterable):
                 repost_id or None,
                 reply_id or None,
                 message,
-                len(message),
-                zlib.adler32(message.encode("utf8")),
+                # These will be populated when co-tweet calculations are necessary
+                None,
+                None,
+                None,
                 # This will be populated only when similarity calculations are necessary
                 None,
                 float(timestamp),
@@ -70,7 +72,7 @@ def preprocess_data(db_path: str, messages: Iterable):
 
         for row in processed:
             db.execute(
-                "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 row[:-1],
             )
 
@@ -142,8 +144,9 @@ def preprocess_twitter_json_data(db_path: str, tweets: Iterable[str]):
                 retweet.get("id_str"),
                 tweet.get("in_reply_to_status_id_str", None),
                 tweet_text,
-                len(tweet_text),
-                zlib.adler32(tweet_text.encode("utf8")),
+                None,
+                None,
+                None,
                 # This will be populated only when similarity calculations are necessary
                 None,
                 # Twitter epoch in seconds
@@ -151,7 +154,7 @@ def preprocess_twitter_json_data(db_path: str, tweets: Iterable[str]):
             )
 
             db.execute(
-                "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row,
+                "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row,
             )
 
             # If it's a retweet, don't consider any of the urls as candidates
@@ -187,7 +190,7 @@ def preprocess_twitter_v2_json_data(db_path: str, tweets: Iterable[str]):
 
     Add messages to the dataset from the specified tweets in Twitter JSON format.
 
-    Tweets must be in Twitter JSON format as collected from the v1.1 JSON API.
+    Tweets must be in Twitter JSON format as collected from the v2 JSON API.
 
     """
 
@@ -218,8 +221,9 @@ def preprocess_twitter_v2_json_data(db_path: str, tweets: Iterable[str]):
                     retweeted_tweet_id,
                     replied_to_id,
                     tweet["text"],
-                    len(tweet["text"]),
-                    zlib.adler32(tweet["text"].encode("utf8")),
+                    None,
+                    None,
+                    None,
                     # This will be populated only when similarity calculations are necessary
                     None,
                     # Twitter epoch in seconds
@@ -227,7 +231,7 @@ def preprocess_twitter_v2_json_data(db_path: str, tweets: Iterable[str]):
                 )
 
                 db.execute(
-                    "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row,
+                    "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row,
                 )
 
                 # If it's a retweet, don't consider any of the urls as candidates

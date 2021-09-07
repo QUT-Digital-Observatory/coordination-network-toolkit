@@ -22,21 +22,28 @@ containing fields in the following order:
     the resolver.
 """
 import argparse
-from coordination_network_toolkit.compute_networks import (compute_co_link_network,
-    compute_co_reply_network, compute_co_retweet_parallel, compute_co_similar_tweet,
-    compute_co_tweet_network)
-from coordination_network_toolkit.preprocess import preprocess_csv_files, preprocess_twitter_json_files
+from coordination_network_toolkit.compute_networks import (
+    compute_co_link_network,
+    compute_co_reply_network,
+    compute_co_retweet_parallel,
+    compute_co_similar_tweet,
+    compute_co_tweet_network,
+)
+from coordination_network_toolkit.preprocess import (
+    preprocess_csv_files,
+    preprocess_twitter_json_files,
+)
 from coordination_network_toolkit.output import write_output, output_node_csv
 from coordination_network_toolkit.urls import resolve_all_urls
 from coordination_network_toolkit.similarity import get_similarity_fn_from_min_size
 
 
 _network_types = {
-    'co_retweet': compute_co_retweet_parallel,
-    'co_tweet': compute_co_tweet_network,
-    'co_reply': compute_co_reply_network,
-    'co_similar_tweet': compute_co_similar_tweet,
-    'co_link': compute_co_link_network
+    "co_retweet": compute_co_retweet_parallel,
+    "co_tweet": compute_co_tweet_network,
+    "co_reply": compute_co_reply_network,
+    "co_similar_tweet": compute_co_similar_tweet,
+    "co_link": compute_co_link_network,
 }
 
 
@@ -46,47 +53,46 @@ def main():
         prog="compute_networks.py",
         description=__doc__,
         epilog="For more information, see documentation at [docs url]",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument(
         "database",
         help="The path to the SQLite database holding the results. "
-             "If it does not exist it will be created.",
+        "If it does not exist it will be created.",
     )
 
     subparsers = parser.add_subparsers(
         title="Commands",
         description="These are the available commands for coordination network processing. "
         "Each of the following sub-commands has further help information "
-             "available by calling, for example, coordination_network_toolkit example.db preprocess --help",
-        dest='command'
+        "available by calling, for example, coordination_network_toolkit example.db preprocess --help",
+        dest="command",
     )
 
     # preprocess subcommand
     preprocess_parser = subparsers.add_parser(
-        'preprocess',
-        help='Load data into a pre-processed format for network computation'
+        "preprocess",
+        help="Load data into a pre-processed format for network computation",
     )
     preprocess_parser.add_argument(
         "files",
         nargs="*",
         help="The files to be imported when running the preprocessing. Specify the "
-             "format of the files with --format. All files must be the same format.",
+        "format of the files with --format. All files must be the same format.",
     )
     preprocess_parser.add_argument(
         "--format",
         default="csv",
         choices=["csv", "twitter_json"],
         help="The format of the input files, defaulting to CSV. "
-            "Twitter JSON format supports both V1.1 and V2 API formats. "
-            "See documentation for a list of columns expected in CSV format."
+        "Twitter JSON format supports both V1.1 and V2 API formats. "
+        "See documentation for a list of columns expected in CSV format.",
     )
 
     # resolve_urls subcommand
     resolve_urls_parser = subparsers.add_parser(
-        "resolve_urls",
-        help="Resolve URLs in data with resolve_urls."
+        "resolve_urls", help="Resolve URLs in data with resolve_urls."
     )
     resolve_urls_parser.add_argument(
         "--max_redirects",
@@ -96,19 +102,16 @@ def main():
     )
 
     # compute subcommand
-    compute_parser = subparsers.add_parser(
-        'compute',
-        help="Compute network."
-    )
+    compute_parser = subparsers.add_parser("compute", help="Compute network.")
     compute_parser.add_argument(
-        'network_type',
+        "network_type",
         choices=_network_types.keys(),
-        help="Which type of network to compute."
+        help="Which type of network to compute.",
     )
     network_params_group = compute_parser.add_argument_group(
-        'network_parameters',
+        "network_parameters",
         "Parameters for computing networks. Not all parameters apply to all types of"
-        "network, please refer to the full documentation for details."
+        "network, please refer to the full documentation for details.",
     )
     network_params_group.add_argument(
         "--time_window",
@@ -147,20 +150,20 @@ def main():
         "--resolved",
         action="store_true",
         help="Only used for co-link networks. When caculating a co-link network, use the resolved urls instead of the "
-             "original URLs. Default is False. Requires that augment_data resolve_urls has "
-             "been run beforehand, otherwise there will be no edges found.",
+        "original URLs. Default is False. Requires that augment_data resolve_urls has "
+        "been run beforehand, otherwise there will be no edges found.",
     )
     network_params_group.add_argument(
         "--n_cpus",
         type=int,
         default=2,
         help="The number of threads to use when calculating the co_retweet networks. "
-             "Ignored for all other operations.",
+        "Ignored for all other operations.",
     )
     network_params_group.add_argument(
         "--output_file",
         default=None,
-        help="(optional) Immediately save the output to this file."
+        help="(optional) Immediately save the output to this file.",
     )
     network_params_group.add_argument(
         "--output_format",
@@ -190,19 +193,25 @@ def main():
         type=int,
         default=10,
     )
+    network_params_group.add_argument(
+        "--reprocess_text",
+        help="Reprocess all text before computing co-similarity or co-tweet networks, "
+        "ignored otherwise. "
+        "This is only needed when upgrading, or after running custom preprocessors "
+        "outside of the command line.",
+        action="store_true",
+    )
 
     network_export_parser = subparsers.add_parser(
-        'export_network',
-        help='Export computed network edges to a file'
+        "export_network", help="Export computed network edges to a file"
     )
     network_export_parser.add_argument(
-        "output_file",
-        help="Where to save the calculated output file."
+        "output_file", help="Where to save the calculated output file."
     )
     network_export_parser.add_argument(
-        'network_type',
+        "network_type",
         choices=_network_types.keys(),
-        help='Which network to export. Network type must have previously been computed.'
+        help="Which network to export. Network type must have previously been computed.",
     )
     network_export_parser.add_argument(
         "--output_format",
@@ -235,15 +244,14 @@ def main():
 
     # export_user_nodes subparser
     export_user_nodes_subparser = subparsers.add_parser(
-        'export_user_nodes',
-        help="Create an additional file listing user nodes and including their attributes."
+        "export_user_nodes",
+        help="Create an additional file listing user nodes and including their attributes.",
     )
     export_user_nodes_subparser.add_argument(
-        'output_file',
+        "output_file",
         help="The location to save the user node list to. The list will be saved as a"
-             "CSV file."
+        "CSV file.",
     )
-
 
     # Process arguments
     args = parser.parse_args()
@@ -251,9 +259,7 @@ def main():
     if args.command == "preprocess":
 
         if not args.files:
-            parser.error(
-                "No files specified to preprocess."
-            )
+            parser.error("No files specified to preprocess.")
 
         if args.format == "csv":
             preprocess_csv_files(args.database, args.files)
@@ -287,7 +293,10 @@ def main():
         elif args.network_type == "co_tweet":
             print(network_calculation_status.format(args=args))
             compute_co_tweet_network(
-                args.database, args.time_window, min_edge_weight=args.min_edge_weight
+                args.database,
+                args.time_window,
+                min_edge_weight=args.min_edge_weight,
+                reprocess_text=args.reprocess_text,
             )
 
         elif args.network_type == "co_reply":
@@ -304,7 +313,10 @@ def main():
                 args.time_window,
                 min_edge_weight=args.min_edge_weight,
                 similarity_threshold=args.similarity_threshold,
-                similarity_function=get_similarity_fn_from_min_size(args.min_document_size_similarity),
+                similarity_function=get_similarity_fn_from_min_size(
+                    args.min_document_size_similarity
+                ),
+                reprocess_text=args.reprocess_text,
             )
 
         elif args.network_type == "co_link":
@@ -320,20 +332,24 @@ def main():
         if args.output_file:
             print(args)
             write_output(
-                args.database, args.network_type, args.output_file,
+                args.database,
+                args.network_type,
+                args.output_file,
                 output_type=args.output_format,
                 symmetric=args.include_symmetric_edges,
                 loops=args.include_self_loops,
-                n_messages=args.n_messages
+                n_messages=args.n_messages,
             )
 
     elif args.command == "export_network":
         write_output(
-            args.database, args.network_type, args.output_file,
+            args.database,
+            args.network_type,
+            args.output_file,
             output_type=args.output_format,
             symmetric=args.include_symmetric_edges,
             loops=args.include_self_loops,
-            n_messages=args.n_messages
+            n_messages=args.n_messages,
         )
 
     elif args.command == "export_user_nodes":

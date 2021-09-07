@@ -12,7 +12,12 @@ COMMAND_TABLE_MAPPING = {
 
 
 def initialise_db(db_path: str):
-    """Initialise the database, ensuring the correct schema is in place."""
+    """
+    Initialise the database, ensuring the correct schema is in place.
+
+    Raises a ValueError if the on disk format is incompatible with this version.
+
+    """
 
     db = lite.connect(db_path, isolation_level=None)
 
@@ -28,8 +33,12 @@ def initialise_db(db_path: str):
             repost_id,
             reply_id,
             message text,
-            message_length integer,
-            message_hash blob,
+            -- The following now describes the transformation of the message,
+            -- as co-tweet analysis needs to be robust to some non-consequential
+            -- variations.
+            transformed_message text,
+            transformed_message_length integer,
+            transformed_message_hash blob,
             token_set text,
             timestamp integer
         );
@@ -49,12 +58,34 @@ def initialise_db(db_path: str):
             resolved_status
         );
 
-        create trigger if not exists url_to_resolve after insert on message_url 
+        create trigger if not exists url_to_resolve after insert on message_url
             begin
                 insert or ignore into resolved_url(url) values(new.url);
             end;
 
+        create table if not exists metadata (
+            property primary key,
+            value
+        );
+
+        insert or ignore into metadata values('version', 1);
         """
     )
+
+    # Sniff the columns in the ondisk format, to handle databases created
+    # before the version check
+    edge_columns = {row[1] for row in db.execute("pragma table_info('edge')")}
+
+    # Current version in the database
+    version = list(db.execute("select value from metadata where property = 'version'"))[
+        0
+    ][0]
+
+    if "message_length" in edge_columns or version != 1:
+        raise ValueError(
+            "This database is not compatible with this version of the "
+            "coordination network toolkit - you will need to reprocess your data "
+            "into a new database."
+        )
 
     return db

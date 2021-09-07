@@ -12,9 +12,36 @@ word_tokenizer = regex.compile(
 )
 
 
+social_media_cleaner = regex.compile(
+    # Find strings that start with @ (ie, mentions)
+    # And grab everything from the trailing slash up to but not including the next
+    # whitespace character or end of text
+    r"@.*?(?=(?:\s|$))"
+)
+
+
+def message_preprocessor(text: str):
+    """A default preprocessing function for social media strings.
+
+    This transforms the text to make the matching process invariant to
+    some non-semantic transformations.
+
+    This default:
+
+    - strips @mentions
+    - normalises some whitespace
+    - lowercases the text
+
+    """
+    return " ".join(social_media_cleaner.sub("", text.lower()).split())
+
+
 def tokenize(text: str, tokenizer: Pattern = word_tokenizer) -> str:
-    words = sorted(set(t for t in tokenizer.split(text.lower()) if t))
+    words = sorted(
+        set(t for t in tokenizer.split(social_media_cleaner.sub("", text.lower())) if t)
+    )
     tokenized = " ".join(words)
+
     return tokenized
 
 
@@ -29,7 +56,7 @@ class MinDocSizeSimilarity:
     A callable class for document similarity that discards short documents.
 
     This is designed to avoid considering extremely short documents (such as a tweet
-    containing only a single mention and hashtag as similar in any way.
+    containing only a single mention and hashtag) as similar in any way.
 
     Note that this is a callable class rather than a function to make future parallel
     processing easier.
@@ -52,7 +79,7 @@ class MinDocSizeSimilarity:
 
 
 def get_similarity_fn_from_min_size(min_document_size_similarity) -> Callable:
-    if min_document_size_similarity > 1:
+    if min_document_size_similarity > 0:
         return MinDocSizeSimilarity(min_document_size_similarity)
     else:
         return similarity

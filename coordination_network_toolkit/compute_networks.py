@@ -3,8 +3,13 @@ import math
 import sqlite3 as lite
 import threading
 from typing import Callable
+from zlib import adler32
 
-from coordination_network_toolkit.similarity import similarity, tokenize
+from coordination_network_toolkit.similarity import (
+    similarity,
+    tokenize,
+    message_preprocessor,
+)
 
 
 local = threading.local()
@@ -20,8 +25,8 @@ network_queries = {
             count(*) as weight
         from edge e_1
         inner join edge e_2
-            on (e_1.message_length, e_1.message_hash, e_1.message) =
-               (e_2.message_length, e_2.message_hash, e_2.message)
+            on (e_1.transformed_message_length, e_1.transformed_message_hash, e_1.transformed_message) =
+               (e_2.transformed_message_length, e_2.transformed_message_hash, e_2.transformed_message)
             and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
             and e_1.repost_id is null
             and e_2.repost_id is null
@@ -57,7 +62,7 @@ network_queries = {
             on e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
         -- Note that this will only work where the Python similarity function has been
         -- registered on the connection - this is not a SQLite native function.
-        where 
+        where
             e_1.repost_id is null
             and e_2.repost_id is null
             and e_1.token_set is not null
@@ -99,31 +104,62 @@ network_queries = {
 }
 
 
-def compute_co_tweet_network(db_path, time_window, min_edge_weight=1):
+def compute_co_tweet_network(
+    db_path,
+    time_window,
+    min_edge_weight=1,
+    preprocessor: Callable = message_preprocessor,
+    reprocess_text=False,
+):
     """
+    Compute a co-tweet network on the given database.
+
+    The text_preprocessor is used to apply transformations to ensure certain invariants,
+    and ensure that non-semantic changes in the text don't occlude matches of otherwise
+    identical content.
+
+    The default transformation removes @mentions as well as normalising case and some
+    whitespace.
+
+    If reprocess_text is True, apply the preprocessor to all text again. This is necessary
+    if you have changed preprocessing functions and need to update already processed data.
 
     """
     db = lite.connect(db_path)
+    db.create_function("preprocessor", 1, message_preprocessor)
+    db.create_function("message_hash", 1, lambda x: adler32(x.encode("utf8")))
 
     with db:
+
+        print("Applying text normalisation for cotweet")
+        db.execute(
+            f"""
+            update edge set
+                transformed_message = preprocessor(message),
+                transformed_message_length = length(preprocessor(message)),
+                transformed_message_hash = message_hash(preprocessor(message))
+            where repost_id is null {
+                "" if reprocess_text else "and transformed_message is null"
+            }
+            """
+        )
         print("Ensuring the necessary index exists")
         db.execute(
             """
             create index if not exists message_content on edge(
-                message_length, message_hash, timestamp
+                transformed_message_length, transformed_message_hash, timestamp
             ) where repost_id is null
             """
         )
         db.execute("drop table if exists co_tweet_network")
         db.execute(
-            network_queries["co_tweet"], [time_window, min_edge_weight],
+            network_queries["co_tweet"],
+            [time_window, min_edge_weight],
         )
 
 
 def compute_co_reply_network(db_path, time_window, min_edge_weight=1):
-    """
-
-    """
+    """ """
     db = lite.connect(db_path)
 
     with db:
@@ -131,20 +167,19 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1):
         db.execute("create index if not exists user_time on edge(user_id, timestamp)")
         db.execute(
             """
-            create index if not exists replies on edge(reply_id, timestamp) 
+            create index if not exists replies on edge(reply_id, timestamp)
             where repost_id is null
             """
         )
         db.execute("drop table if exists co_reply_network")
         db.execute(
-            network_queries["co_reply"], [time_window, min_edge_weight],
+            network_queries["co_reply"],
+            [time_window, min_edge_weight],
         )
 
 
 def compute_co_link_network(db_path, time_window, min_edge_weight=1, resolved=False):
-    """
-
-    """
+    """ """
     db = lite.connect(db_path)
 
     print("Ensuring the necessary index exists")
@@ -163,7 +198,8 @@ def compute_co_link_network(db_path, time_window, min_edge_weight=1, resolved=Fa
                 """
             )
             db.execute(
-                network_queries["co_link_resolved"], [time_window, min_edge_weight],
+                network_queries["co_link_resolved"],
+                [time_window, min_edge_weight],
             )
 
         else:
@@ -177,7 +213,8 @@ def compute_co_link_network(db_path, time_window, min_edge_weight=1, resolved=Fa
             )
 
             db.execute(
-                network_queries["co_link"], [time_window, min_edge_weight],
+                network_queries["co_link"],
+                [time_window, min_edge_weight],
             )
 
 
@@ -188,18 +225,19 @@ def compute_co_similar_tweet(
     similarity_threshold=0.9,
     min_edge_weight=1,
     similarity_function: Callable = similarity,
+    reprocess_text=False,
 ):
-    """  
+    """
 
     Create a network where tweets with a certain similarity are counted as coordinated
     edges.
 
-    An arbitrary text similarity function can be applied. It must take the string 
+    An arbitrary text similarity function can be applied. It must take the string
     representation of the two messages to compared. The default is the Jaccard
     similarity, with a normalised similarity between 0 and 1.
 
     Currently the n_threads argument is not used.
-    
+
     """
     db = lite.connect(db_path, isolation_level=None)
     db.create_function("similarity", 2, similarity_function)
@@ -220,12 +258,15 @@ def compute_co_similar_tweet(
     # Tokenize text
     print("Tokenizing messages")
     db.execute(
-        """
+        f"""
         update edge set token_set = tokenize(message)
-        where repost_id is null and token_set is null
+        where repost_id is null {
+            "" if reprocess_text else "and token_set is null"
+        }
         """
     )
 
+    print("Calculating similarity")
     db.execute(
         network_queries["co_similar_tweet"],
         [time_window, min_edge_weight, similarity_threshold],
@@ -276,7 +317,7 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
                     from edge e_1
                     inner join edge e_2
                         on e_1.repost_id = e_2.repost_id
-                        and e_2.timestamp between e_1.timestamp - ?1 
+                        and e_2.timestamp between e_1.timestamp - ?1
                             and e_1.timestamp + ?1
                         and user_1 in (select user_id from user_id)
                     group by e_1.user_id, e_2.user_id
@@ -351,4 +392,3 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
     db.close()
 
     return completed
-
