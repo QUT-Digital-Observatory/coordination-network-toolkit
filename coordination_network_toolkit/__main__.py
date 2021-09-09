@@ -311,6 +311,7 @@ def main():
             compute_co_similar_tweet(
                 args.database,
                 args.time_window,
+                n_threads=args.n_cpus,
                 min_edge_weight=args.min_edge_weight,
                 similarity_threshold=args.similarity_threshold,
                 similarity_function=get_similarity_fn_from_min_size(
