@@ -295,6 +295,7 @@ def main():
             compute_co_tweet_network(
                 args.database,
                 args.time_window,
+                n_threads=args.n_cpus,
                 min_edge_weight=args.min_edge_weight,
                 reprocess_text=args.reprocess_text,
             )
@@ -302,7 +303,10 @@ def main():
         elif args.network_type == "co_reply":
             print(network_calculation_status.format(args=args))
             compute_co_reply_network(
-                args.database, args.time_window, min_edge_weight=args.min_edge_weight
+                args.database,
+                args.time_window,
+                min_edge_weight=args.min_edge_weight,
+                n_threads=args.n_cpus,
             )
 
         elif args.network_type == "co_similar_tweet":
@@ -326,6 +330,7 @@ def main():
             compute_co_link_network(
                 args.database,
                 args.time_window,
+                n_threads=args.n_cpus,
                 min_edge_weight=args.min_edge_weight,
                 resolved=args.resolved,
             )

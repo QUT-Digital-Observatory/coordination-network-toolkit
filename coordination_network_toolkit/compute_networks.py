@@ -54,36 +54,6 @@ network_queries = {
         group by e_1.user_id, e_2.user_id
         having weight >= ?2
         """,
-    "co_link": """
-        -- This query will create the table representing the edges of the network.
-        create table co_link_network as
-        select
-            e_1.user_id as user_1,
-            e_2.user_id as user_2,
-            count(*) as weight
-        from message_url e_1
-        inner join message_url e_2
-            on e_1.url = e_2.url
-            and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
-        group by e_1.user_id, e_2.user_id
-        having weight >= ?2
-        """,
-    "co_link_resolved": """
-        -- This query will create the table representing the edges of the network.
-        create table co_link_network as
-        select
-            e_1.user_id as user_1,
-            e_2.user_id as user_2,
-            count(*) as weight
-        from resolved_message_url e_1
-        inner join resolved_message_url e_2
-            on e_1.resolved_url = e_2.resolved_url
-            -- Keep any row where the retweets are by different users and within n
-            -- seconds of each other.
-            and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
-        group by e_1.user_id, e_2.user_id
-        having weight >= ?2
-        """,
 }
 
 
@@ -161,45 +131,101 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1):
         )
 
 
-def compute_co_link_network(db_path, time_window, min_edge_weight=1, resolved=False):
-    """ """
-    db = lite.connect(db_path)
+def compute_co_link_network(db_path, time_window, n_threads=4, min_edge_weight=1, resolved=False):
 
-    print("Ensuring the necessary index exists")
+    db = lite.connect(db_path, isolation_level=None)
 
-    with db:
+    print("Ensure the indexes exist to drive the join.")
 
-        db.execute("drop table if exists co_link_network")
+    db.execute("begin")
 
-        if resolved:
+    db.execute("drop table if exists co_link_network")
+    db.execute(
+        """
+        create table co_link_network (
+            user_1,
+            user_2,
+            weight,
+            primary key (user_1, user_2)
+        ) without rowid;
+        """
+    )
 
-            db.execute(
-                """
-                create index if not exists resolved_url_message on resolved_message_url(
-                    resolved_url, timestamp
-                )
-                """
+    if resolved:
+
+        db.execute(
+            """
+            create index if not exists resolved_url_message on resolved_message_url(
+                resolved_url, timestamp
             )
-            db.execute(
-                network_queries["co_link_resolved"],
-                [time_window, min_edge_weight],
+            """
+        )
+
+        db.execute(
+            """
+            create index if not exists resolved_user_url on message_url(
+                user_id, url, timestamp
             )
+            """
+        )
 
-        else:
+        query ="""
+            select
+                e_1.user_id as user_1,
+                e_2.user_id as user_2,
+                count(*) as weight
+            from resolved_message_url e_1
+            inner join resolved_message_url e_2
+                on e_1.resolved_url = e_2.resolved_url
+                -- Keep any row where the retweets are by different users and within n
+                -- seconds of each other.
+                and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
+            where user_1 in (select user_id from user_id)
+            group by e_1.user_id, e_2.user_id
+            having weight >= ?2
+        """
 
-            db.execute(
-                """
-                create index if not exists url_message on message_url(
-                    url, timestamp
-                )
-                """
+    else:
+
+        db.execute(
+            """
+            create index if not exists url_message on message_url(
+                url, timestamp
             )
-
-            db.execute(
-                network_queries["co_link"],
-                [time_window, min_edge_weight],
+            """
+        )
+        db.execute(
+            """
+            create index if not exists user_url on message_url(
+                user_id, url, timestamp
             )
+            """
+        )
+        query = """
+            select
+                e_1.user_id as user_1,
+                e_2.user_id as user_2,
+                count(*) as weight
+            from message_url e_1
+            inner join message_url e_2
+                on e_1.url = e_2.url
+                and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
+            where user_1 in (select user_id from user_id)
+            group by e_1.user_id, e_2.user_id
+            having weight >= ?2
+        """
 
+    db.execute("commit")
+
+    print("Calculating the co-link network")
+    return parallise_query_by_user_id(
+        db_path,
+        "co_link_network",
+        query,
+        (time_window, min_edge_weight),
+        n_processes=n_threads,
+        sqlite_functions=None
+    )
 
 def compute_co_similar_tweet(
     db_path,
