@@ -6,7 +6,6 @@ from concurrent.futures import (
 import math
 import multiprocessing as mp
 import sqlite3 as lite
-import threading
 from typing import Callable
 from zlib import adler32
 
@@ -17,52 +16,13 @@ from coordination_network_toolkit.similarity import (
 )
 
 
-local = threading.local()
-
-
-network_queries = {
-    "co_tweet": """
-        -- This query will create the table representing the edges of the network.
-        create table co_tweet_network as
-        select
-            e_1.user_id as user_1,
-            e_2.user_id as user_2,
-            count(*) as weight
-        from edge e_1
-        inner join edge e_2
-            on (e_1.transformed_message_length, e_1.transformed_message_hash, e_1.transformed_message) =
-               (e_2.transformed_message_length, e_2.transformed_message_hash, e_2.transformed_message)
-            and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
-            and e_1.repost_id is null
-            and e_2.repost_id is null
-        group by e_1.user_id, e_2.user_id
-        having weight >= ?2
-        """,
-    "co_reply": """
-        -- This query will create the table representing the edges of the network.
-        create table co_reply_network as
-        select
-            e_1.user_id as user_1,
-            e_2.user_id as user_2,
-            count(*) as weight
-        from edge e_1
-        inner join edge e_2
-            on e_1.reply_id = e_2.reply_id
-            and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
-            and e_1.repost_id is null
-            and e_2.repost_id is null
-        group by e_1.user_id, e_2.user_id
-        having weight >= ?2
-        """,
-}
-
-
 def compute_co_tweet_network(
     db_path,
     time_window,
     min_edge_weight=1,
     preprocessor: Callable = message_preprocessor,
     reprocess_text=False,
+    n_threads=4,
 ):
     """
     Compute a co-tweet network on the given database.
@@ -106,29 +66,93 @@ def compute_co_tweet_network(
         )
         db.execute("drop table if exists co_tweet_network")
         db.execute(
-            network_queries["co_tweet"],
-            [time_window, min_edge_weight],
+            """
+            create table co_tweet_network (
+                user_1,
+                user_2,
+                weight,
+                primary key (user_1, user_2)
+            ) without rowid
+            """
         )
 
+    query = """
+        select
+            e_1.user_id as user_1,
+            e_2.user_id as user_2,
+            count(*) as weight
+        from edge e_1
+        inner join edge e_2
+            on (e_1.transformed_message_length, e_1.transformed_message_hash, e_1.transformed_message) =
+               (e_2.transformed_message_length, e_2.transformed_message_hash, e_2.transformed_message)
+            and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
+            and e_1.repost_id is null
+            and e_2.repost_id is null
+        where user_1 in (select user_id from user_id)
+        group by e_1.user_id, e_2.user_id
+        having weight >= ?2
+    """
 
-def compute_co_reply_network(db_path, time_window, min_edge_weight=1):
+    return parallise_query_by_user_id(
+        db_path,
+        "co_tweet_network",
+        query,
+        (time_window, min_edge_weight),
+        n_processes=n_threads,
+        sqlite_functions=None
+    )
+
+
+def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=4):
     """ """
-    db = lite.connect(db_path)
+    db = lite.connect(db_path, isolation_level=None)
 
-    with db:
-        print("Ensuring the necessary index exists")
-        db.execute("create index if not exists user_time on edge(user_id, timestamp)")
-        db.execute(
-            """
-            create index if not exists replies on edge(reply_id, timestamp)
-            where repost_id is null
-            """
-        )
-        db.execute("drop table if exists co_reply_network")
-        db.execute(
-            network_queries["co_reply"],
-            [time_window, min_edge_weight],
-        )
+    print("Ensuring the necessary index exists")
+
+    db.execute("create index if not exists user_time on edge(user_id, timestamp)")
+    db.execute(
+        """
+        create index if not exists replies on edge(reply_id, timestamp)
+        where repost_id is null
+        """
+    )
+    db.execute("drop table if exists co_reply_network")
+    db.execute(
+        """
+        create table co_reply_network (
+            user_1,
+            user_2,
+            weight,
+            primary key (user_1, user_2)
+        ) without rowid
+        """
+    )
+
+    query = """
+        select
+            e_1.user_id as user_1,
+            e_2.user_id as user_2,
+            count(*) as weight
+        from edge e_1
+        inner join edge e_2
+            on e_1.reply_id = e_2.reply_id
+            and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
+            and e_1.repost_id is null
+            and e_2.repost_id is null
+        where user_1 in (select user_id from user_id)
+        group by e_1.user_id, e_2.user_id
+        having weight >= ?2
+    """
+
+    return parallise_query_by_user_id(
+        db_path,
+        "co_reply_network",
+        query,
+        (time_window, min_edge_weight),
+        n_processes=n_threads,
+        sqlite_functions=None
+    )
+
 
 
 def compute_co_link_network(db_path, time_window, n_threads=4, min_edge_weight=1, resolved=False):
