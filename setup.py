@@ -40,7 +40,7 @@ setuptools.setup(
         "Topic :: Sociology"
     ],
     keywords='social_science social_media_analysis similarity_networks',
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     setup_requires=['setuptools_scm'],
     use_scm_version=True,
     install_requires=install_requires,
