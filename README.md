@@ -155,3 +155,10 @@ The names of the columns don't matter but the order does.
 - timestamp: A timestamp in seconds for the message. The absolute offset does not matter,
     but it needs to be consistent across all rows
 - urls: A space delimited string containing all of the URLs in the message
+
+
+## Cite the Coordination Network Toolkit
+
+Graham, Timothy; QUT Digital Observatory; (2020): Coordination Network Toolkit. 
+Queensland University of Technology. (Software) 
+https://doi.org/10.25912/RDF_1632782596538
