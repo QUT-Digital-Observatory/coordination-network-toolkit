@@ -13,6 +13,8 @@ repository-code: "https://github.com/QUT-Digital-Observatory/coordination-networ
 url: "https://researchdatafinder.qut.edu.au/display/n26261"
 license: MIT
 keywords:
+  - "coordinated inauthentic behavoir"
+  - "network analysis"
   - "social science"
   - "social media analysis"
   - "similarity networks"
