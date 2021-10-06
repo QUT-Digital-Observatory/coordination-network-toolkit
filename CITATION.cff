@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Graham
+    given-names: Timothy
+    orcid: "http://orcid.org/0000-0002-4053-9313"
+    affiliation: "Queensland University of Technology"
+  - name: "QUT Digital Observatory"
+    website: https://www.qut.edu.au/research/why-qut/infrastructure/digital-observatory
+title: "Coordination Network Toolkit"
+doi: "10.25912/RDF_1632782596538"
+repository-code: "https://github.com/QUT-Digital-Observatory/coordination-network-toolkit"
+url: "https://researchdatafinder.qut.edu.au/display/n26261"
+license: MIT
+keywords:
+  - "coordinated inauthentic behavoir"
+  - "network analysis"
+  - "social science"
+  - "social media analysis"
+  - "similarity networks"
+  - "sociology"
