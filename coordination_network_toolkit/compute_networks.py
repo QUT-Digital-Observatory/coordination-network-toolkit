@@ -54,6 +54,7 @@ def parallise_query_by_user_id(
     query_parameters,
     n_processes=4,
     sqlite_functions=None,
+    user_selection_query="select distinct user_id from edge",
 ):
     """
     Helper utility for executing network calculations that are parallelisable
@@ -80,12 +81,18 @@ def parallise_query_by_user_id(
             primary key (user_1, user_2)
         ) without rowid;
 
-    Extra functions is a map from an SQLite function named in the query to a
+    sqlite_functions: a map from an SQLite function named in the query to a
     Python function/number of arguments, to be setup in the background
     processes. This looks like the following dict, which maps to the SQLite
     wrapper call `db.create_function("similarity", 2, similarity_function)`:
 
         {'similarity': (similarity_function, 2)}
+
+    user_selection_query: an SQLite query that selects a column of user_id's
+    to use in calculation. The default is to select all users, but for some
+    calculations it is possible to prune user's early and avoid some
+    computation. It can only use base SQLite features and cannot take any
+    parameters.
 
     """
 
@@ -101,47 +108,16 @@ def parallise_query_by_user_id(
     completed = 0
     submitted = 0
 
-    user_ids = []
+    user_ids = [row[0] for row in db.execute(user_selection_query)]
+    target_batches = n_processes * 10
+    batch_size = math.floor(len(user_ids) / target_batches)
 
-    batch_size = math.ceil(
-        list(db.execute("select count(distinct user_id) from edge"))[0][0]
-        / (n_processes * 10)
-    )
+    # Generate batches of user_ids
+    batches = [
+        user_ids[i : i + batch_size] for i in range(0, len(user_ids), batch_size)
+    ]
 
-    for (user_id,) in db.execute("select distinct user_id from edge"):
-
-        user_ids.append(user_id)
-
-        if len(user_ids) == batch_size:
-
-            waiting.add(
-                pool.submit(
-                    _run_query,
-                    db_path,
-                    target_table,
-                    query,
-                    query_parameters,
-                    user_ids,
-                    sqlite_functions or {},
-                )
-            )
-
-            submitted += 1
-
-            user_ids = []
-
-            if len(waiting) >= n_processes:
-                done, waiting = wait(waiting, return_when=FIRST_COMPLETED)
-
-                for d in done:
-                    d.result()
-                    completed += 1
-
-            if not (submitted % n_processes):
-                print(f"Completed {completed} / {n_processes * 10}")
-
-    else:
-        print("Waiting for final batch.")
+    for batch in batches:
         waiting.add(
             pool.submit(
                 _run_query,
@@ -149,11 +125,23 @@ def parallise_query_by_user_id(
                 target_table,
                 query,
                 query_parameters,
-                user_ids,
+                batch,
                 sqlite_functions or {},
             )
         )
-        wait(waiting)
+
+    while waiting:
+        done, waiting = wait(waiting, return_when=FIRST_COMPLETED)
+
+        for d in done:
+            # Observe errors
+            d.result()
+            completed += 1
+
+            if not (completed % (len(batches) // 10)):
+                print(f"Completed {completed} / {len(batches)}")
+
+    print(f"Completed {completed} / {len(batches)}")
 
     db.close()
 
