@@ -224,7 +224,7 @@ def compute_co_tweet_network(
         select
             e_1.user_id as user_1,
             e_2.user_id as user_2,
-            count(*) as weight
+            count(distinct e_1.message_id) as weight
         from edge e_1
         inner join edge e_2
             on (e_1.transformed_message_length, e_1.transformed_message_hash, e_1.transformed_message) =
@@ -276,7 +276,7 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
         select
             e_1.user_id as user_1,
             e_2.user_id as user_2,
-            count(*) as weight
+            count(distinct e_1.message_id) as weight
         from edge e_1
         inner join edge e_2
             on e_1.reply_id = e_2.reply_id
@@ -342,7 +342,7 @@ def compute_co_link_network(
             select
                 e_1.user_id as user_1,
                 e_2.user_id as user_2,
-                count(*) as weight
+                count(distinct e_1.message_id) as weight
             from resolved_message_url e_1
             inner join resolved_message_url e_2
                 on e_1.resolved_url = e_2.resolved_url
@@ -374,7 +374,7 @@ def compute_co_link_network(
             select
                 e_1.user_id as user_1,
                 e_2.user_id as user_2,
-                count(*) as weight
+                count(distinct e_1.message_id) as weight
             from message_url e_1
             inner join message_url e_2
                 on e_1.url = e_2.url
@@ -459,7 +459,7 @@ def compute_co_similar_tweet(
         select
             e_1.user_id as user_1,
             e_2.user_id as user_2,
-            count(*) as weight
+            count(distinct e_1.message_id) as weight
         from edge e_1 indexed by user_time
         inner join edge e_2
             -- Length filtering of the messages
@@ -511,7 +511,7 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
         select
             e_1.user_id as user_1,
             e_2.user_id as user_2,
-            count(*) as weight
+            count(distinct e_1.message_id) as weight
         from edge e_1
         inner join edge e_2
             on e_1.repost_id = e_2.repost_id
@@ -519,7 +519,7 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
                 and e_1.timestamp + ?1
             and user_1 in (select user_id from user_id)
         group by e_1.user_id, e_2.user_id
-        having count(*) >= ?
+        having weight >= ?
     """
     print("Calculating the co-retweet network")
     return parallise_query_by_user_id(
