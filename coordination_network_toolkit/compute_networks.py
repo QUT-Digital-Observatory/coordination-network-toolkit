@@ -55,6 +55,7 @@ def parallise_query_by_user_id(
     n_processes=4,
     sqlite_functions=None,
     user_selection_query="select distinct user_id from edge",
+    user_selection_query_parameters=None,
 ):
     """
     Helper utility for executing network calculations that are parallelisable
@@ -108,7 +109,13 @@ def parallise_query_by_user_id(
     completed = 0
     submitted = 0
 
-    user_ids = [row[0] for row in db.execute(user_selection_query)]
+    user_ids = [
+        row[0]
+        for row in db.execute(
+            user_selection_query, user_selection_query_parameters or []
+        )
+    ]
+
     target_batches = n_processes * 10
     batch_size = math.floor(len(user_ids) / target_batches)
 
@@ -208,6 +215,19 @@ def compute_co_tweet_network(
             """
         )
 
+    # Optimisation - a user can never have an edge if the account doesn't have more
+    # then min_edge_weight non-repost messages in the dataset
+    user_selection_query = """
+        select
+            user_id
+        from edge
+        where repost_id is null
+        group by user_id
+        having count(*) >= ?
+    """
+
+    user_selection_query_parameters = [min_edge_weight]
+
     query = """
         select
             e_1.user_id as user_1,
@@ -225,6 +245,7 @@ def compute_co_tweet_network(
         having weight >= ?2
     """
 
+    print("computing co_tweet network")
     return parallise_query_by_user_id(
         db_path,
         "co_tweet_network",
@@ -232,6 +253,8 @@ def compute_co_tweet_network(
         (time_window, min_edge_weight),
         n_processes=n_threads,
         sqlite_functions=None,
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=user_selection_query_parameters,
     )
 
 
@@ -276,6 +299,19 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
         having weight >= ?2
     """
 
+    # Optimisation - a user can never have an edge if the account doesn't have more
+    # then min_edge_weight replies in the dataset
+    user_selection_query = """
+        select
+            user_id
+        from edge
+        where reply_id is not null
+        group by user_id
+        having count(*) >= ?
+    """
+
+    user_selection_query_parameters = [min_edge_weight]
+
     return parallise_query_by_user_id(
         db_path,
         "co_reply_network",
@@ -283,6 +319,8 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
         (time_window, min_edge_weight),
         n_processes=n_threads,
         sqlite_functions=None,
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=user_selection_query_parameters,
     )
 
 
@@ -320,7 +358,7 @@ def compute_co_link_network(
 
         db.execute(
             """
-            create index if not exists resolved_user_url on message_url(
+            create index if not exists resolved_user_url on resolve_message_url(
                 user_id, url, timestamp
             )
             """
@@ -340,6 +378,16 @@ def compute_co_link_network(
             where user_1 in (select user_id from user_id)
             group by e_1.user_id, e_2.user_id
             having weight >= ?2
+        """
+
+        # Optimisation - a user can never have an edge if the account hasn't posted
+        # more than min_edge_weight links
+        user_selection_query = """
+            select
+                user_id
+            from resolved_message_url
+            group by user_id
+            having count(*) >= ?
         """
 
     else:
@@ -372,6 +420,16 @@ def compute_co_link_network(
             having weight >= ?2
         """
 
+        # Optimisation - a user can never have an edge if the account hasn't posted
+        # more than min_edge_weight links
+        user_selection_query = """
+            select
+                user_id
+            from message_url
+            group by user_id
+            having count(*) >= ?
+        """
+
     db.execute("commit")
 
     print("Calculating the co-link network")
@@ -382,6 +440,8 @@ def compute_co_link_network(
         (time_window, min_edge_weight),
         n_processes=n_threads,
         sqlite_functions=None,
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=[min_edge_weight],
     )
 
 
@@ -465,6 +525,18 @@ def compute_co_similar_tweet(
         having weight >= ?2
     """
 
+    # Optimisation - a user can never have an edge if the account doesn't have more
+    # then min_edge_weight non-repost messages in the dataset. This is the same as
+    # co-tweet behaviour
+    user_selection_query = """
+        select
+            user_id
+        from edge
+        where repost_id is null
+        group by user_id
+        having count(*) >= ?
+    """
+
     return parallise_query_by_user_id(
         db_path,
         "co_similar_tweet_network",
@@ -472,6 +544,8 @@ def compute_co_similar_tweet(
         [time_window, min_edge_weight, similarity_threshold],
         n_processes=n_threads,
         sqlite_functions={"similarity": (similarity_function, 2)},
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=[min_edge_weight],
     )
 
 
@@ -509,7 +583,20 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
         group by e_1.user_id, e_2.user_id
         having weight >= ?
     """
+
     print("Calculating the co-retweet network")
+
+    # Optimisation - a user can never have an edge if the account doesn't have
+    # more then min_edge_weight reposted messages in the dataset.
+    user_selection_query = """
+        select
+            user_id
+        from edge
+        where repost_id is not null
+        group by user_id
+        having count(*) >= ?
+    """
+
     return parallise_query_by_user_id(
         db_path,
         "co_retweet_network",
@@ -517,6 +604,8 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
         (time_window, min_edge_weight),
         n_processes=n_threads,
         sqlite_functions=None,
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=[min_edge_weight],
     )
 
 
