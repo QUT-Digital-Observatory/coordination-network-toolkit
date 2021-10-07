@@ -262,7 +262,7 @@ def main():
             "Calculating a {args.network_type} network on {args.database} "
             "with the following settings:\n"
             "    time_window: {args.time_window} seconds\n"
-            "    min_edge_weight: {args.min_edge_weight} co-ocurring messages\n"
+            "    min_edge_weight: {args.min_edge_weight} co-occurring messages\n"
             "    n_cpus: {args.n_cpus} processors\n"
             "    output_file: {args.output_file}"
         )
