@@ -27,30 +27,26 @@ def output_node_csv(db_path, output_file, n_messages=10):
             writer.writerow(row)
 
 
-def output_gephi_csv(db_path, command, output_file, symmetric=False, loops=False):
+def output_gephi_csv(db_path, command, output_file, loops=False):
 
     with open(output_file, "w") as f:
         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
 
         writer.writerow(["source", "target", "weight", "edge_type"])
 
-        rows = get_edge_rows(db_path, command, symmetric=symmetric, loops=loops)
+        rows = get_edge_rows(db_path, command, loops=loops)
 
         for row in rows:
             writer.writerow(row)
 
 
-def output_graphml(
-    db_path, command, output_file, symmetric=False, loops=False, n_messages=10
-):
+def output_graphml(db_path, command, output_file, loops=False, n_messages=10):
     """
     Output a graphml file, representing the nodes and edges of the given table.
 
     """
 
-    graph = load_networkx_graph(
-        db_path, command, symmetric=symmetric, loops=loops, n_messages=n_messages
-    )
+    graph = load_networkx_graph(db_path, command, loops=loops, n_messages=n_messages)
 
     nx.write_graphml(graph, output_file)
 

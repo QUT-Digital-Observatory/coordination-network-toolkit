@@ -4,7 +4,7 @@ import networkx as nx
 from coordination_network_toolkit.database import COMMAND_TABLE_MAPPING
 
 
-def get_edge_rows(db_path, command, symmetric=False, loops=False):
+def get_edge_rows(db_path, command, loops=False):
     """
     Return an iterator over the rows of the source table in the given database file.
 
@@ -15,14 +15,10 @@ def get_edge_rows(db_path, command, symmetric=False, loops=False):
 
     table = COMMAND_TABLE_MAPPING[command]
 
-    if symmetric and loops:
+    if loops:
         query = f"select *, '{command}' from {table}"
-    elif symmetric:
-        query = f"select *, '{command}' from {table} where user_1 != user_2"
-    elif loops:
-        query = f"select *, '{command}' from {table} where user_2 >= user_1"
     else:
-        query = f"select *, '{command}' from {table} where user_2 > user_1"
+        query = f"select *, '{command}' from {table} where user_1 != user_2"
 
     db = lite.connect(db_path)
 
@@ -64,12 +60,12 @@ def get_node_rows(db_path, n_messages=10):
         yield [user_id, username] + tweets
 
 
-def load_networkx_graph(db_path, command, symmetric=False, loops=False, n_messages=10):
+def load_networkx_graph(db_path, command, loops=False, n_messages=10):
     """Return a networkx graph object representing the given source table."""
 
     g = nx.Graph()
 
-    edges = get_edge_rows(db_path, command, symmetric=symmetric, loops=loops)
+    edges = get_edge_rows(db_path, command, loops=loops)
 
     # Add the edges
     for user_1, user_2, weight, edge_type in edges:
