@@ -1,7 +1,11 @@
 import csv
 import networkx as nx
 
-from coordination_network_toolkit.graph import get_node_rows, get_edge_rows, load_networkx_graph
+from coordination_network_toolkit.graph import (
+    get_node_rows,
+    get_edge_rows,
+    load_networkx_graph,
+)
 
 
 def output_node_csv(db_path, output_file, n_messages=10):
@@ -51,13 +55,17 @@ def output_graphml(
     nx.write_graphml(graph, output_file)
 
 
-def write_output(database_name, network_type, output_filename, output_type="csv", **kwargs):
+def write_output(
+    database_name, network_type, output_filename, output_type="csv", **kwargs
+):
     """Write the output, based on the given arguments."""
     if output_type == "graphml":
         output_fn = output_graphml
     elif output_type == "csv":
         output_fn = output_gephi_csv
     else:
-        raise ValueError(f"{output_type} is not recognised as an available export format")
+        raise ValueError(
+            f"{output_type} is not recognised as an available export format"
+        )
 
     output_fn(database_name, network_type, output_filename, **kwargs)
