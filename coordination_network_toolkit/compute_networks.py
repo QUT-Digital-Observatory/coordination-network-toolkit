@@ -1,3 +1,34 @@
+"""
+compute_networks.py
+
+This is the core module for the actual computation of coordination networks.
+It provides some infrastructure for "fast-enough" computation of coordination
+networks. Fast enough in this context means:
+
+- Providing a framework for parallel computation of parts of graphs, including
+  a recommended starting point for how to decompose the problem into parts of
+  the graph. Importantly, this is designed to allow Python code to be
+  parallelised so we can make the most of our local compute while still
+  working in a higher level language.
+- Enable delegation of work to SQLite rather than Python - SQLite can be
+  faster, and naturally enables out-of-core computation rather than explicitly
+  loading and working with large datasets in memory.
+- Make the most of data locality of reference for effective computation at
+  each stage of the process. This is principally enabled by the construction
+  of appropriate database indexes for particular problems.
+
+The recommended starting point for adding a new network type is to start with
+the `parallelise_query_by_user_id` function. This automatically handles
+creating batches of user ids and dispatching them to execute a the provided
+query on each of those batches in parallel. If you can write an SQLite query
+that computes your desired network for a subset of users specified in a
+temporary table called `user_id` this function will handle parallelisation,
+storing local temporary results and then aggregating them into a single table
+at the end.
+
+"""
+
+
 from concurrent.futures import (
     ProcessPoolExecutor,
     wait,
@@ -14,6 +45,119 @@ from coordination_network_toolkit.similarity import (
     tokenize,
     message_preprocessor,
 )
+
+
+def parallise_query_by_user_id(
+    db_path,
+    target_table,
+    query,
+    query_parameters,
+    n_processes=4,
+    sqlite_functions=None,
+):
+    """
+    Helper utility for executing network calculations that are parallelisable
+    at the user level.
+
+    Parallelisation is done using multiprocessing, allowing user defined
+    functions to run in the SQLite layer without being constrained by the
+    GIL.
+
+    The query must be a select query, describing part of the calculation
+    according to the following rules:
+
+    - it must reference the a subset of user_ids in the local temporary table
+      called `user_id`
+    - the query parameters will be passed through directly to the query
+      without alteration.
+
+    The query should be writable to target_table with the following schema:
+
+        create table {target_table} (
+            user_1,
+            user_2,
+            weight,
+            primary key (user_1, user_2)
+        ) without rowid;
+
+    Extra functions is a map from an SQLite function named in the query to a
+    Python function/number of arguments, to be setup in the background
+    processes. This looks like the following dict, which maps to the SQLite
+    wrapper call `db.create_function("similarity", 2, similarity_function)`:
+
+        {'similarity': (similarity_function, 2)}
+
+    """
+
+    lock = mp.Lock()
+    pool = ProcessPoolExecutor(
+        max_workers=n_processes, initializer=__init, initargs=(lock,)
+    )
+
+    db = lite.connect(db_path)
+
+    waiting = set()
+    count = 0
+    completed = 0
+    submitted = 0
+
+    user_ids = []
+
+    batch_size = math.ceil(
+        list(db.execute("select count(distinct user_id) from edge"))[0][0]
+        / (n_processes * 10)
+    )
+
+    for (user_id,) in db.execute("select distinct user_id from edge"):
+
+        user_ids.append(user_id)
+
+        if len(user_ids) == batch_size:
+
+            waiting.add(
+                pool.submit(
+                    _run_query,
+                    db_path,
+                    target_table,
+                    query,
+                    query_parameters,
+                    user_ids,
+                    sqlite_functions or {},
+                )
+            )
+
+            submitted += 1
+
+            user_ids = []
+
+            if len(waiting) >= n_processes:
+                done, waiting = wait(waiting, return_when=FIRST_COMPLETED)
+
+                for d in done:
+                    d.result()
+                    completed += 1
+
+            if not (submitted % n_processes):
+                print(f"Completed {completed} / {n_processes * 10}")
+
+    else:
+        print("Waiting for final batch.")
+        waiting.add(
+            pool.submit(
+                _run_query,
+                db_path,
+                target_table,
+                query,
+                query_parameters,
+                user_ids,
+                sqlite_functions or {},
+            )
+        )
+        wait(waiting)
+
+    db.close()
+
+    return completed
 
 
 def compute_co_tweet_network(
@@ -99,7 +243,7 @@ def compute_co_tweet_network(
         query,
         (time_window, min_edge_weight),
         n_processes=n_threads,
-        sqlite_functions=None
+        sqlite_functions=None,
     )
 
 
@@ -150,12 +294,13 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
         query,
         (time_window, min_edge_weight),
         n_processes=n_threads,
-        sqlite_functions=None
+        sqlite_functions=None,
     )
 
 
-
-def compute_co_link_network(db_path, time_window, n_threads=4, min_edge_weight=1, resolved=False):
+def compute_co_link_network(
+    db_path, time_window, n_threads=4, min_edge_weight=1, resolved=False
+):
 
     db = lite.connect(db_path, isolation_level=None)
 
@@ -193,7 +338,7 @@ def compute_co_link_network(db_path, time_window, n_threads=4, min_edge_weight=1
             """
         )
 
-        query ="""
+        query = """
             select
                 e_1.user_id as user_1,
                 e_2.user_id as user_2,
@@ -248,8 +393,9 @@ def compute_co_link_network(db_path, time_window, n_threads=4, min_edge_weight=1
         query,
         (time_window, min_edge_weight),
         n_processes=n_threads,
-        sqlite_functions=None
+        sqlite_functions=None,
     )
+
 
 def compute_co_similar_tweet(
     db_path,
@@ -337,7 +483,7 @@ def compute_co_similar_tweet(
         query,
         [time_window, min_edge_weight, similarity_threshold],
         n_processes=n_threads,
-        sqlite_functions={'similarity': (similarity_function, 2)}
+        sqlite_functions={"similarity": (similarity_function, 2)},
     )
 
 
@@ -382,7 +528,7 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
         query,
         (time_window, min_edge_weight),
         n_processes=n_threads,
-        sqlite_functions=None
+        sqlite_functions=None,
     )
 
 
@@ -398,12 +544,12 @@ def _run_query(
 
     db = lite.connect(db_path)
     db.execute(
-        """
-        create temporary table local_network (
-            user_id_1,
-            user_id_2,
-            weight
-        );
+        f"""
+        create temporary table local_network as
+            select *
+            from {target_table}
+            limit 0
+        ;
         """
     )
     db.execute(
@@ -446,111 +592,3 @@ def _run_query(
 def __init(l):
     global lock
     lock = l
-
-
-def parallise_query_by_user_id(
-    db_path,
-    target_table,
-    query,
-    query_parameters,
-    n_processes=4,
-    sqlite_functions=None,
-):
-    """
-    Helper utility for executing network calculations that are parallelisable at the user level.
-
-    Parallelisation is done using multiprocessing, allowing user defined functions to run in the SQLite
-    layer without being constrained by the GIL.
-
-    The query must be a select query, describing part of the calculation according to the following rules:
-
-    - it must reference the subset of user_ids as the local temporary table called temp_users
-    - the query parameters will be passed through directly to the query without alteration.
-
-    The query should be writable to target_table with the following schema:
-
-        create table {target_table} (
-            user_1,
-            user_2,
-            weight,
-            primary key (user_1, user_2)
-        ) without rowid;
-
-    Extra functions is a map from an SQLite function named in the query to a
-    Python function/number of arguments, to be setup in the background
-    processes. This looks like the following dict, which maps to the SQLite
-    wrapper call `db.create_function("similarity", 2, similarity_function)`:
-
-        {'similarity': (similarity_function, 2)}
-
-    """
-
-    lock = mp.Lock()
-    pool = ProcessPoolExecutor(
-        max_workers=n_processes, initializer=__init, initargs=(lock,)
-    )
-
-    db = lite.connect(db_path)
-
-    waiting = set()
-    count = 0
-    completed = 0
-    submitted = 0
-
-    user_ids = []
-
-    batch_size = 1000
-    n_batches = math.ceil(
-        list(db.execute("select count(distinct user_id) from edge"))[0][0] / batch_size
-    )
-
-    for (user_id,) in db.execute("select distinct user_id from edge"):
-
-        user_ids.append(user_id)
-
-        if len(user_ids) == batch_size:
-
-            waiting.add(
-                pool.submit(
-                    _run_query,
-                    db_path,
-                    target_table,
-                    query,
-                    query_parameters,
-                    user_ids,
-                    sqlite_functions or {},
-                )
-            )
-
-            submitted += 1
-
-            user_ids = []
-
-            if len(waiting) >= 20:
-                done, waiting = wait(waiting, return_when=FIRST_COMPLETED)
-
-                for d in done:
-                    d.result()
-                    completed += 1
-
-            if not (submitted % 100):
-                print(f"Completed {completed} / {n_batches}")
-
-    else:
-        print("Waiting for final batch.")
-        waiting.add(
-            pool.submit(
-                _run_query,
-                db_path,
-                target_table,
-                query,
-                query_parameters,
-                user_ids,
-                sqlite_functions or {},
-            )
-        )
-        wait(waiting)
-
-    db.close()
-
-    return completed
