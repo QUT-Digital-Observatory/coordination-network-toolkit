@@ -8,7 +8,6 @@ from twarc import ensure_flattened
 from coordination_network_toolkit.database import initialise_db
 
 
-
 def preprocess_csv_files(db_path: str, input_filenames: List[str]):
     for message_file in input_filenames:
         # Skip the header
@@ -34,8 +33,8 @@ def preprocess_data(db_path: str, messages: Iterable):
     - message_id: the unique identifier of the message on the platform
     - user_id: the unique identifier of the user on the platform
     - username: the text of the username (only used for display)
-    - repost_id: if the message is a verbatim report of another message (such as a retweet 
-        or reblog), this is the identifier of that other message. Empty strings will be 
+    - repost_id: if the message is a verbatim report of another message (such as a retweet
+        or reblog), this is the identifier of that other message. Empty strings will be
         converted to null
     - reply_id: if the message is in reply to another message, the identifier for that other
         message. Empty strings will be converted to null.
@@ -154,7 +153,8 @@ def preprocess_twitter_json_data(db_path: str, tweets: Iterable[str]):
             )
 
             db.execute(
-                "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row,
+                "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                row,
             )
 
             # If it's a retweet, don't consider any of the urls as candidates
@@ -164,7 +164,9 @@ def preprocess_twitter_json_data(db_path: str, tweets: Iterable[str]):
                         "urls"
                     ]
                 else:
-                    url_entities = tweet.get("extended_tweet", tweet)["entities"]["urls"]
+                    url_entities = tweet.get("extended_tweet", tweet)["entities"][
+                        "urls"
+                    ]
 
                 message_id, user_id = row[:2]
                 timestamp = row[-1]
@@ -231,7 +233,8 @@ def preprocess_twitter_v2_json_data(db_path: str, tweets: Iterable[str]):
                 )
 
                 db.execute(
-                    "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row,
+                    "insert or ignore into edge values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    row,
                 )
 
                 # If it's a retweet, don't consider any of the urls as candidates

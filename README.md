@@ -13,6 +13,8 @@ Social media platforms are also used strategically to boost particular messages 
 
 This software provides a toolkit to detect coordinated activity on social media and to generate networks that map the actors and their relationships. It provides a general purpose toolkit for multiple types of coordinated activity on any type of social media platform.
 
+Fundamentally this toolkit produces networks where the nodes are accounts, and the weighted edges between these accounts are the number of messages from those accounts that meet some criterion for a type of *coordination*. This toolkit already implements several approaches to detecting different types of coordination, and is intended to be extensible to more cases in the future.
+
 Firstly, it includes functionality for *co-tweeting* and *co-retweeting* (Keller et al., 2019; Schafer et al., 2017), where accounts post exactly the same text (co-tweets) or repost the same post within a short time window (co-retweets). Secondly, it includes functionality for *co-link* analysis, where multiple accounts post the same URLs repeatedly and in a short time window of each other (Giglietto et al., 2020). Thirdly, it adds two new types of network types: *co-reply*, where accounts are replying to the same post repeatedly together; and *co-similarity*, where accounts post similar text (but not exact duplicates), which relaxes the strict assumption of co-tweeting. 
 
 ### Five types of coordination networks

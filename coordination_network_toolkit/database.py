@@ -43,6 +43,9 @@ def initialise_db(db_path: str):
             timestamp integer
         );
 
+        -- To accelerate the lookup of user_ids, and messages by specific users.
+        create index if not exists user_edge on edge(user_id);
+
         create table if not exists message_url(
             message_id references edge(message_id),
             url,

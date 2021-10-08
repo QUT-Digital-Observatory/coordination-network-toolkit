@@ -54,6 +54,8 @@ def parallise_query_by_user_id(
     query_parameters,
     n_processes=4,
     sqlite_functions=None,
+    user_selection_query="select distinct user_id from edge",
+    user_selection_query_parameters=None,
 ):
     """
     Helper utility for executing network calculations that are parallelisable
@@ -80,12 +82,20 @@ def parallise_query_by_user_id(
             primary key (user_1, user_2)
         ) without rowid;
 
-    Extra functions is a map from an SQLite function named in the query to a
+    sqlite_functions: a map from an SQLite function named in the query to a
     Python function/number of arguments, to be setup in the background
     processes. This looks like the following dict, which maps to the SQLite
     wrapper call `db.create_function("similarity", 2, similarity_function)`:
 
         {'similarity': (similarity_function, 2)}
+
+    user_selection_query: an SQLite query that selects a column of user_id's
+    to use in calculation. The default is to select all users, but for some
+    calculations it is possible to prune user's early and avoid some
+    computation. It can only use base SQLite features and cannot take any
+    parameters. Note that this query will run in a single thread - if you're
+    not careful running this query will take more time than the actual
+    calculation, so use with care.
 
     """
 
@@ -101,47 +111,22 @@ def parallise_query_by_user_id(
     completed = 0
     submitted = 0
 
-    user_ids = []
+    user_ids = [
+        row[0]
+        for row in db.execute(
+            user_selection_query, user_selection_query_parameters or []
+        )
+    ]
 
-    batch_size = math.ceil(
-        list(db.execute("select count(distinct user_id) from edge"))[0][0]
-        / (n_processes * 10)
-    )
+    target_batches = n_processes * 10
+    batch_size = max(math.floor(len(user_ids) / target_batches), 1)
 
-    for (user_id,) in db.execute("select distinct user_id from edge"):
+    # Generate batches of user_ids
+    batches = [
+        user_ids[i : i + batch_size] for i in range(0, len(user_ids), batch_size)
+    ]
 
-        user_ids.append(user_id)
-
-        if len(user_ids) == batch_size:
-
-            waiting.add(
-                pool.submit(
-                    _run_query,
-                    db_path,
-                    target_table,
-                    query,
-                    query_parameters,
-                    user_ids,
-                    sqlite_functions or {},
-                )
-            )
-
-            submitted += 1
-
-            user_ids = []
-
-            if len(waiting) >= n_processes:
-                done, waiting = wait(waiting, return_when=FIRST_COMPLETED)
-
-                for d in done:
-                    d.result()
-                    completed += 1
-
-            if not (submitted % n_processes):
-                print(f"Completed {completed} / {n_processes * 10}")
-
-    else:
-        print("Waiting for final batch.")
+    for batch in batches:
         waiting.add(
             pool.submit(
                 _run_query,
@@ -149,11 +134,23 @@ def parallise_query_by_user_id(
                 target_table,
                 query,
                 query_parameters,
-                user_ids,
+                batch,
                 sqlite_functions or {},
             )
         )
-        wait(waiting)
+
+    while waiting:
+        done, waiting = wait(waiting, return_when=FIRST_COMPLETED)
+
+        for d in done:
+            # Observe errors
+            d.result()
+            completed += 1
+
+            if not (completed % math.ceil(len(batches) / 10)):
+                print(f"Completed {completed} / {len(batches)}")
+
+    print(f"Completed {completed} / {len(batches)}")
 
     db.close()
 
@@ -190,6 +187,12 @@ def compute_co_tweet_network(
 
         print("Applying text normalisation for cotweet")
         db.execute(
+            """
+            create index if not exists text_needs_processing on edge(message_id)
+                where repost_id is null and transformed_message is null;
+            """
+        )
+        db.execute(
             f"""
             update edge set
                 transformed_message = preprocessor(message),
@@ -200,7 +203,15 @@ def compute_co_tweet_network(
             }
             """
         )
-        print("Ensuring the necessary index exists")
+        print("Ensuring the necessary indexes exists")
+
+        db.execute("drop index if exists user_time")
+        db.execute(
+            """
+            create index if not exists non_repost_user_time on edge(user_id, timestamp)
+                where repost_id is null;
+            """
+        )
         db.execute(
             """
             create index if not exists message_content on edge(
@@ -220,11 +231,24 @@ def compute_co_tweet_network(
             """
         )
 
+    # Optimisation - a user can never have an edge if the account doesn't have more
+    # then min_edge_weight non-repost messages in the dataset
+    user_selection_query = """
+        select
+            user_id
+        from edge
+        where repost_id is null
+        group by user_id
+        having count(*) >= ?
+    """
+
+    user_selection_query_parameters = [min_edge_weight]
+
     query = """
         select
             e_1.user_id as user_1,
             e_2.user_id as user_2,
-            count(*) as weight
+            count(distinct e_1.message_id) as weight
         from edge e_1
         inner join edge e_2
             on (e_1.transformed_message_length, e_1.transformed_message_hash, e_1.transformed_message) =
@@ -237,6 +261,7 @@ def compute_co_tweet_network(
         having weight >= ?2
     """
 
+    print("computing co_tweet network")
     return parallise_query_by_user_id(
         db_path,
         "co_tweet_network",
@@ -244,6 +269,8 @@ def compute_co_tweet_network(
         (time_window, min_edge_weight),
         n_processes=n_threads,
         sqlite_functions=None,
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=user_selection_query_parameters,
     )
 
 
@@ -251,9 +278,18 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
     """ """
     db = lite.connect(db_path, isolation_level=None)
 
-    print("Ensuring the necessary index exists")
-
-    db.execute("create index if not exists user_time on edge(user_id, timestamp)")
+    print("Ensuring the necessary indexes exists")
+    db.execute(
+        """
+        create index if not exists reply_non_repost_user_time on edge(
+            -- The repost_id is totally superfluous, but it's a small
+            -- cost overhead to make SQLite happy to use this as a
+            -- covering index.
+            user_id, timestamp, reply_id, repost_id
+        )
+            where repost_id is null and reply_id is not null;
+        """
+    )
     db.execute(
         """
         create index if not exists replies on edge(reply_id, timestamp)
@@ -276,7 +312,7 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
         select
             e_1.user_id as user_1,
             e_2.user_id as user_2,
-            count(*) as weight
+            count(distinct e_1.message_id) as weight
         from edge e_1
         inner join edge e_2
             on e_1.reply_id = e_2.reply_id
@@ -288,6 +324,20 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
         having weight >= ?2
     """
 
+    # Optimisation - a user can never have an edge if the account doesn't have more
+    # then min_edge_weight replies in the dataset
+    user_selection_query = """
+        select
+            user_id
+        from edge
+        where repost_id is null
+            and reply_id is not null
+        group by user_id
+        having count(*) >= ?
+    """
+
+    user_selection_query_parameters = [min_edge_weight]
+
     return parallise_query_by_user_id(
         db_path,
         "co_reply_network",
@@ -295,6 +345,8 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
         (time_window, min_edge_weight),
         n_processes=n_threads,
         sqlite_functions=None,
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=user_selection_query_parameters,
     )
 
 
@@ -322,6 +374,9 @@ def compute_co_link_network(
 
     if resolved:
 
+        # TODO: need to check that messages have actually been resolved, otherwise the
+        # resolved_message_url table won't exist!
+
         db.execute(
             """
             create index if not exists resolved_url_message on resolved_message_url(
@@ -332,7 +387,7 @@ def compute_co_link_network(
 
         db.execute(
             """
-            create index if not exists resolved_user_url on message_url(
+            create index if not exists resolved_user_url on resolved_message_url(
                 user_id, url, timestamp
             )
             """
@@ -342,7 +397,7 @@ def compute_co_link_network(
             select
                 e_1.user_id as user_1,
                 e_2.user_id as user_2,
-                count(*) as weight
+                count(distinct e_1.message_id) as weight
             from resolved_message_url e_1
             inner join resolved_message_url e_2
                 on e_1.resolved_url = e_2.resolved_url
@@ -352,6 +407,16 @@ def compute_co_link_network(
             where user_1 in (select user_id from user_id)
             group by e_1.user_id, e_2.user_id
             having weight >= ?2
+        """
+
+        # Optimisation - a user can never have an edge if the account hasn't posted
+        # more than min_edge_weight links
+        user_selection_query = """
+            select
+                user_id
+            from resolved_message_url
+            group by user_id
+            having count(*) >= ?
         """
 
     else:
@@ -374,7 +439,7 @@ def compute_co_link_network(
             select
                 e_1.user_id as user_1,
                 e_2.user_id as user_2,
-                count(*) as weight
+                count(distinct e_1.message_id) as weight
             from message_url e_1
             inner join message_url e_2
                 on e_1.url = e_2.url
@@ -382,6 +447,16 @@ def compute_co_link_network(
             where user_1 in (select user_id from user_id)
             group by e_1.user_id, e_2.user_id
             having weight >= ?2
+        """
+
+        # Optimisation - a user can never have an edge if the account hasn't posted
+        # more than min_edge_weight links
+        user_selection_query = """
+            select
+                user_id
+            from message_url
+            group by user_id
+            having count(*) >= ?
         """
 
     db.execute("commit")
@@ -394,6 +469,8 @@ def compute_co_link_network(
         (time_window, min_edge_weight),
         n_processes=n_threads,
         sqlite_functions=None,
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=[min_edge_weight],
     )
 
 
@@ -424,7 +501,9 @@ def compute_co_similar_tweet(
 
     db.executescript(
         """
-        create index if not exists user_time on edge(user_id, timestamp);
+        drop index if exists user_time;
+        create index if not exists non_repost_user_time on edge(user_id, timestamp)
+            where repost_id is null;
         create index if not exists to_tokenize on edge(message_id)
             where repost_id is null and token_set is null;
         create index if not exists timestamp on edge(timestamp);
@@ -459,8 +538,8 @@ def compute_co_similar_tweet(
         select
             e_1.user_id as user_1,
             e_2.user_id as user_2,
-            count(*) as weight
-        from edge e_1 indexed by user_time
+            count(distinct e_1.message_id) as weight
+        from edge e_1 indexed by non_repost_user_time
         inner join edge e_2
             -- Length filtering of the messages
             on e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
@@ -477,6 +556,18 @@ def compute_co_similar_tweet(
         having weight >= ?2
     """
 
+    # Optimisation - a user can never have an edge if the account doesn't have more
+    # then min_edge_weight non-repost messages in the dataset. This is the same as
+    # co-tweet behaviour
+    user_selection_query = """
+        select
+            user_id
+        from edge
+        where repost_id is null
+        group by user_id
+        having count(*) >= ?
+    """
+
     return parallise_query_by_user_id(
         db_path,
         "co_similar_tweet_network",
@@ -484,6 +575,8 @@ def compute_co_similar_tweet(
         [time_window, min_edge_weight, similarity_threshold],
         n_processes=n_threads,
         sqlite_functions={"similarity": (similarity_function, 2)},
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=[min_edge_weight],
     )
 
 
@@ -494,7 +587,8 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
     print("Ensure the indexes exist to drive the join.")
     db.executescript(
         """
-        create index if not exists user_time on edge(user_id, timestamp);
+        create index if not exists repost_user_time on edge(user_id, timestamp, repost_id)
+            where repost_id is not null;
         create index if not exists repost_time on edge(
             repost_id, timestamp
         ) where repost_id is not null;
@@ -511,7 +605,7 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
         select
             e_1.user_id as user_1,
             e_2.user_id as user_2,
-            count(*) as weight
+            count(distinct e_1.message_id) as weight
         from edge e_1
         inner join edge e_2
             on e_1.repost_id = e_2.repost_id
@@ -519,9 +613,22 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
                 and e_1.timestamp + ?1
             and user_1 in (select user_id from user_id)
         group by e_1.user_id, e_2.user_id
+        having weight >= ?
+    """
+
+    print("Calculating the co-retweet network")
+
+    # Optimisation - a user can never have an edge if the account doesn't have
+    # more then min_edge_weight reposted messages in the dataset.
+    user_selection_query = """
+        select
+            user_id
+        from edge
+        where repost_id is not null
+        group by user_id
         having count(*) >= ?
     """
-    print("Calculating the co-retweet network")
+
     return parallise_query_by_user_id(
         db_path,
         "co_retweet_network",
@@ -529,6 +636,8 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
         (time_window, min_edge_weight),
         n_processes=n_threads,
         sqlite_functions=None,
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=[min_edge_weight],
     )
 
 

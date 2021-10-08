@@ -22,7 +22,7 @@ def test_graph_construction_workflow(tmpdir):
         ((1, 2, True), 5),  # 5 accounts with more than one retweet for the self loop
         # Note that in this example, uid10 retweets a message twice - this is
         # counted as a self loop so not included in the output nodes.
-        ((60, 1, False), 6),  
+        ((60, 1, False), 6),
         ((60, 1, True), 9),  # All of the nodes should be included with self loops
     )
 
@@ -34,7 +34,7 @@ def test_graph_construction_workflow(tmpdir):
             )
 
             g = graph.load_networkx_graph(
-                db, "co_retweet", symmetric=True, loops=self_loops, n_messages=10
+                db, "co_retweet", loops=self_loops, n_messages=10
             )
 
             print(time_window, min_edge_weight, self_loops)

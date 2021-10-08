@@ -12,11 +12,11 @@
 # It will run each of the networks, than return the number of edges in the
 # result networks (including both directions and self-loops)
 
-compute_networks $1 compute co_tweet --time_window 60 --n_cpus 16 --min_edge_weight 3
-compute_networks $1 compute co_retweet --time_window 60 --n_cpus 16 --min_edge_weight 3
-compute_networks $1 compute co_link --time_window 60 --n_cpus 16 --min_edge_weight 3
-compute_networks $1 compute co_reply --time_window 60 --n_cpus 16 --min_edge_weight 3
-compute_networks $1 compute co_similar_tweet --time_window 60 --similarity_threshold 0.8 --n_cpus 16 --min_edge_weight 3
+compute_networks $1 compute co_tweet --time_window $2 --n_cpus $3 --min_edge_weight $4
+compute_networks $1 compute co_retweet --time_window $2 --n_cpus $3 --min_edge_weight $4
+compute_networks $1 compute co_link --time_window $2 --n_cpus $3 --min_edge_weight $4
+compute_networks $1 compute co_reply --time_window $2 --n_cpus $3 --min_edge_weight $4
+compute_networks $1 compute co_similar_tweet --time_window $2 --similarity_threshold 0.8 --n_cpus $3 --min_edge_weight $4
 
 
 sqlite3 $1 "select 'co-link edges', count(*) from co_link_network; \

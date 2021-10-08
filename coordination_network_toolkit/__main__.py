@@ -175,13 +175,6 @@ def main():
         "with low values for --min_edge_weight. Ignored if --output_file is not set.",
     )
     network_params_group.add_argument(
-        "--include_symmetric_edges",
-        help="Include the duplicate edges in the opposite direction. "
-        "Default is False, so if there is an edge between A and B, there will be no "
-        "edge recorded between B and A.",
-        action="store_true",
-    )
-    network_params_group.add_argument(
         "--include_self_loops",
         help="Include loops (where users interact with their own posts.). Default is "
         "not to include loops.",
@@ -221,13 +214,6 @@ def main():
         "Note that graphml output requires the whole graph to be loaded into "
         "memory before loading, and may not be appropriate for large graphs, or "
         "with low values for --min_edge_weight",
-    )
-    network_export_parser.add_argument(
-        "--include_symmetric_edges",
-        help="Include the duplicate edges in the opposite direction. "
-        "Default is False, so if there is an edge between A and B, there will be no "
-        "edge recorded between B and A.",
-        action="store_true",
     )
     network_export_parser.add_argument(
         "--include_self_loops",
@@ -276,7 +262,7 @@ def main():
             "Calculating a {args.network_type} network on {args.database} "
             "with the following settings:\n"
             "    time_window: {args.time_window} seconds\n"
-            "    min_edge_weight: {args.min_edge_weight} co-ocurring messages\n"
+            "    min_edge_weight: {args.min_edge_weight} co-occurring messages\n"
             "    n_cpus: {args.n_cpus} processors\n"
             "    output_file: {args.output_file}"
         )
@@ -342,7 +328,6 @@ def main():
                 args.network_type,
                 args.output_file,
                 output_type=args.output_format,
-                symmetric=args.include_symmetric_edges,
                 loops=args.include_self_loops,
                 n_messages=args.n_messages,
             )
@@ -353,7 +338,6 @@ def main():
             args.network_type,
             args.output_file,
             output_type=args.output_format,
-            symmetric=args.include_symmetric_edges,
             loops=args.include_self_loops,
             n_messages=args.n_messages,
         )
