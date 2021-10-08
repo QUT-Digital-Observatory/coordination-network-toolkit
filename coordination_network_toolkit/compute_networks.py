@@ -93,7 +93,9 @@ def parallise_query_by_user_id(
     to use in calculation. The default is to select all users, but for some
     calculations it is possible to prune user's early and avoid some
     computation. It can only use base SQLite features and cannot take any
-    parameters.
+    parameters. Note that this query will run in a single thread - if you're
+    not careful running this query will take more time than the actual
+    calculation, so use with care.
 
     """
 
@@ -185,6 +187,12 @@ def compute_co_tweet_network(
 
         print("Applying text normalisation for cotweet")
         db.execute(
+            """
+            create index if not exists text_needs_processing on edge(message_id)
+                where repost_id is null and transformed_message is null;
+            """
+        )
+        db.execute(
             f"""
             update edge set
                 transformed_message = preprocessor(message),
@@ -195,7 +203,15 @@ def compute_co_tweet_network(
             }
             """
         )
-        print("Ensuring the necessary index exists")
+        print("Ensuring the necessary indexes exists")
+
+        db.execute("drop index if exists user_time")
+        db.execute(
+            """
+            create index if not exists non_repost_user_time on edge(user_id, timestamp)
+                where repost_id is null;
+            """
+        )
         db.execute(
             """
             create index if not exists message_content on edge(
@@ -262,9 +278,18 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
     """ """
     db = lite.connect(db_path, isolation_level=None)
 
-    print("Ensuring the necessary index exists")
-
-    db.execute("create index if not exists user_time on edge(user_id, timestamp)")
+    print("Ensuring the necessary indexes exists")
+    db.execute(
+        """
+        create index if not exists reply_non_repost_user_time on edge(
+            -- The repost_id is totally superfluous, but it's a small
+            -- cost overhead to make SQLite happy to use this as a
+            -- covering index.
+            user_id, timestamp, reply_id, repost_id
+        )
+            where repost_id is null and reply_id is not null;
+        """
+    )
     db.execute(
         """
         create index if not exists replies on edge(reply_id, timestamp)
@@ -305,7 +330,8 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
         select
             user_id
         from edge
-        where reply_id is not null
+        where repost_id is null
+            and reply_id is not null
         group by user_id
         having count(*) >= ?
     """
@@ -348,6 +374,9 @@ def compute_co_link_network(
 
     if resolved:
 
+        # TODO: need to check that messages have actually been resolved, otherwise the
+        # resolved_message_url table won't exist!
+
         db.execute(
             """
             create index if not exists resolved_url_message on resolved_message_url(
@@ -358,7 +387,7 @@ def compute_co_link_network(
 
         db.execute(
             """
-            create index if not exists resolved_user_url on resolve_message_url(
+            create index if not exists resolved_user_url on resolved_message_url(
                 user_id, url, timestamp
             )
             """
@@ -472,7 +501,9 @@ def compute_co_similar_tweet(
 
     db.executescript(
         """
-        create index if not exists user_time on edge(user_id, timestamp);
+        drop index if exists user_time;
+        create index if not exists non_repost_user_time on edge(user_id, timestamp)
+            where repost_id is null;
         create index if not exists to_tokenize on edge(message_id)
             where repost_id is null and token_set is null;
         create index if not exists timestamp on edge(timestamp);
@@ -508,7 +539,7 @@ def compute_co_similar_tweet(
             e_1.user_id as user_1,
             e_2.user_id as user_2,
             count(distinct e_1.message_id) as weight
-        from edge e_1 indexed by user_time
+        from edge e_1 indexed by non_repost_user_time
         inner join edge e_2
             -- Length filtering of the messages
             on e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
@@ -556,7 +587,8 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
     print("Ensure the indexes exist to drive the join.")
     db.executescript(
         """
-        create index if not exists user_time on edge(user_id, timestamp);
+        create index if not exists repost_user_time on edge(user_id, timestamp, repost_id)
+            where repost_id is not null;
         create index if not exists repost_time on edge(
             repost_id, timestamp
         ) where repost_id is not null;

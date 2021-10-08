@@ -43,6 +43,14 @@ def initialise_db(db_path: str):
             timestamp integer
         );
 
+        -- To accelerate the lookup of user_ids, and messages by specific users.
+        create index if not exists user_edge on edge(user_id);
+
+        create trigger if not exists populate_seen_user after insert on edge
+            begin
+                insert or ignore into seen_user(user_id) values(new.user_id);
+            end;
+
         create table if not exists message_url(
             message_id references edge(message_id),
             url,
