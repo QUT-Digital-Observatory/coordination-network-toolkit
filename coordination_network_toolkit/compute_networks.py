@@ -119,7 +119,7 @@ def parallise_query_by_user_id(
     ]
 
     target_batches = n_processes * 10
-    batch_size = math.floor(len(user_ids) / target_batches)
+    batch_size = max(math.floor(len(user_ids) / target_batches), 1)
 
     # Generate batches of user_ids
     batches = [
@@ -147,7 +147,7 @@ def parallise_query_by_user_id(
             d.result()
             completed += 1
 
-            if not (completed % (len(batches) // 10)):
+            if not (completed % math.ceil(len(batches) / 10)):
                 print(f"Completed {completed} / {len(batches)}")
 
     print(f"Completed {completed} / {len(batches)}")
