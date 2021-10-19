@@ -69,6 +69,8 @@ Using this tool requires:
 
 ## Examples
 
+This is just a quick example - see also [the tutorial.](docs/tutorial.md).
+
 ### Worked example - CLI tool
 
 1. Collect Twitter data in the native Twitter JSON format using
