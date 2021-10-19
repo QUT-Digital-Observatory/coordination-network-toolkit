@@ -69,7 +69,7 @@ Using this tool requires:
 
 ## Examples
 
-This is just a quick example - see also [the tutorial.](docs/tutorial.md).
+This is just a quick example - see also [the tutorial.](docs/tutorial.md)
 
 ### Worked example - CLI tool
 
