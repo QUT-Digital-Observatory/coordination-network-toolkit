@@ -69,6 +69,8 @@ Using this tool requires:
 
 ## Examples
 
+This is just a quick example - see also [the tutorial.](docs/tutorial.md)
+
 ### Worked example - CLI tool
 
 1. Collect Twitter data in the native Twitter JSON format using
@@ -164,3 +166,8 @@ The names of the columns don't matter but the order does.
 Graham, Timothy; QUT Digital Observatory; (2020): Coordination Network Toolkit. 
 Queensland University of Technology. (Software) 
 https://doi.org/10.25912/RDF_1632782596538
+
+
+## Looking for Help?
+
+Are you getting stuck somewhere or want to ask questions about using this toolkit? Please open an issue or bring your questions to the Digital Observatory's fortnightly [office hours](https://research.qut.edu.au/digitalobservatory/office-hours/).
