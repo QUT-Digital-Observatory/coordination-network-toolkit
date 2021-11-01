@@ -388,7 +388,7 @@ def compute_co_link_network(
         db.execute(
             """
             create index if not exists resolved_user_url on resolved_message_url(
-                user_id, url, timestamp
+                user_id, resolved_url, timestamp
             )
             """
         )
