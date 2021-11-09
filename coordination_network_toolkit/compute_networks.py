@@ -99,10 +99,9 @@ def parallise_query_by_user_id(
 
     """
 
-    lock = mp.Lock()
-    pool = ProcessPoolExecutor(
-        max_workers=n_processes, initializer=__init, initargs=(lock,)
-    )
+    manager = mp.Manager()
+    lock = manager.Lock()
+    pool = ProcessPoolExecutor(max_workers=n_processes)
 
     db = lite.connect(db_path)
 
@@ -136,6 +135,7 @@ def parallise_query_by_user_id(
                 query_parameters,
                 batch,
                 sqlite_functions or {},
+                lock,
             )
         )
 
@@ -642,12 +642,7 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
 
 
 def _run_query(
-    db_path,
-    target_table,
-    query,
-    query_parameters,
-    user_ids,
-    sqlite_functions,
+    db_path, target_table, query, query_parameters, user_ids, sqlite_functions, lock
 ):
     """Run the target query on the subset of user_ids provided."""
 
@@ -692,12 +687,3 @@ def _run_query(
     # the lock...
     with lock, db:
         db.execute(f"insert into {target_table} select * from local_network")
-
-
-# Via this snippet from stackoverflow:
-# https://stackoverflow.com/questions/25557686/python-sharing-a-lock-between-processes
-# TLDR - have to take special care when trying to pass locks to a background
-# process in a pool.
-def __init(l):
-    global lock
-    lock = l
