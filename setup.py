@@ -8,13 +8,7 @@ install_requires = [
     "twarc>=2.4.0",
 ]
 
-extras_require = {
-    "development": [
-        "nox",
-        "pytest",
-        "pip-tools"
-    ]
-}
+extras_require = {"development": ["nox", "pytest", "pip-tools"]}
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -27,7 +21,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/QUT-Digital-Observatory/coordination-network-toolkit",
-    license='MIT',
+    license="MIT",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -37,17 +31,17 @@ setuptools.setup(
         "Environment :: Console",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Information Analysis",
-        "Topic :: Sociology"
+        "Topic :: Sociology",
     ],
-    keywords='social_science social_media_analysis similarity_networks',
-    python_requires='>=3.7',
-    setup_requires=['setuptools_scm'],
+    keywords="social_science social_media_analysis similarity_networks",
+    python_requires=">=3.6",
+    setup_requires=["setuptools_scm"],
     use_scm_version=True,
     install_requires=install_requires,
     extras_require=extras_require,
     entry_points={
-        'console_scripts': [
-            'compute_networks=coordination_network_toolkit.__main__:main'
+        "console_scripts": [
+            "compute_networks=coordination_network_toolkit.__main__:main"
         ]
-    }
+    },
 )
