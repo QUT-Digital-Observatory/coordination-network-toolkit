@@ -63,7 +63,7 @@ def get_node_rows(db_path, n_messages=10):
 def load_networkx_graph(db_path, command, loops=False, n_messages=10):
     """Return a networkx graph object representing the given source table."""
 
-    g = nx.Graph()
+    g = nx.DiGraph()
 
     edges = get_edge_rows(db_path, command, loops=loops)
 
