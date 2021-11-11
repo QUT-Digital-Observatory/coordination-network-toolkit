@@ -20,7 +20,7 @@ Nodes in this network contain:
 
 - "user_id": the user ID or unique identifier of that user
 - "username": an arbitrarily selected username from all of the usernames that user ID had (to account for possible changes in the username over time)
-- "message_N": a snapshot of the Nth most recent message posted by that user in the dataset (by default there will be up to ten such attributes for the ten most recent messages).
+- "message_N": a snapshot of the Nth most recent message posted by that user in the dataset. By default there will be up to ten such attributes for the ten most recent messages - this can be adjusted on the command line with the --n_messages option.
 
 Edges in this network are directed from user A to user B and contain:
 
