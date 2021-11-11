@@ -19,6 +19,8 @@ Firstly, it includes functionality for *co-tweeting* and *co-retweeting* (Keller
 
 ### Five types of coordination networks
 
+Briefly, the following network types are supported. For more information see the [documentation](docs/network_types.md)
+
 1. Co-retweet: reposting the same post
 2. Co-tweet: posting identical text
 3. Co-similarity: posting similar text (Jaccard similarity or user-defined)
