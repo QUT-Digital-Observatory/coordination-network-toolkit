@@ -21,13 +21,17 @@ containing fields in the following order:
     If you use the short_url, co-link analysis will not be useful without running
     the resolver.
 """
+
 import argparse
+import multiprocessing as mp
+
 from coordination_network_toolkit.compute_networks import (
     compute_co_link_network,
     compute_co_reply_network,
     compute_co_retweet_parallel,
     compute_co_similar_tweet,
     compute_co_tweet_network,
+    compute_co_post_network,
 )
 from coordination_network_toolkit.preprocess import (
     preprocess_csv_files,
@@ -37,6 +41,7 @@ from coordination_network_toolkit.output import write_output, output_node_csv
 from coordination_network_toolkit.urls import resolve_all_urls
 from coordination_network_toolkit.similarity import get_similarity_fn_from_min_size
 
+available_cpus = mp.cpu_count()
 
 _network_types = {
     "co_retweet": compute_co_retweet_parallel,
@@ -44,6 +49,7 @@ _network_types = {
     "co_reply": compute_co_reply_network,
     "co_similar_tweet": compute_co_similar_tweet,
     "co_link": compute_co_link_network,
+    "co_post": compute_co_post_network,
 }
 
 
@@ -156,7 +162,7 @@ def main():
     network_params_group.add_argument(
         "--n_cpus",
         type=int,
-        default=2,
+        default=available_cpus,
         help="The number of threads to use when calculating the co_retweet networks. "
         "Ignored for all other operations.",
     )
@@ -319,6 +325,15 @@ def main():
                 n_threads=args.n_cpus,
                 min_edge_weight=args.min_edge_weight,
                 resolved=args.resolved,
+            )
+
+        elif args.network_type == "co_post":
+            print(network_calculation_status.format(args=args))
+            compute_co_post_network(
+                args.database,
+                args.time_window,
+                n_threads=args.n_cpus,
+                min_edge_weight=args.min_edge_weight,
             )
 
         if args.output_file:

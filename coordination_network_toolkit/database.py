@@ -8,6 +8,7 @@ COMMAND_TABLE_MAPPING = {
     "co_reply": "co_reply_network",
     "co_link": "co_link_network",
     "co_similar_tweet": "co_similar_tweet_network",
+    "co_post": "co_post_network",
 }
 
 
