@@ -26,8 +26,9 @@ Briefly, the following network types are supported. For more information see the
 3. Co-similarity: posting similar text (Jaccard similarity or user-defined)
 4. Co-link: posting the same link
 5. Co-reply: replying to the same post
+6. Co-post: posting any time of message within the same time window
 
-Default time window is 60 seconds for all network types.
+The default time window is 60 seconds for all network types.
 
 ## Reading List
 
