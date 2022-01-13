@@ -275,7 +275,13 @@ def compute_co_tweet_network(
 
 
 def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=4):
-    """ """
+    """
+    Compute a co-reply network on the given database.
+
+    Co replies occur when users reply to the same specific message within
+    `time_window` of each other.
+
+    """
     db = lite.connect(db_path, isolation_level=None)
 
     print("Ensuring the necessary indexes exists")
@@ -341,6 +347,71 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
     return parallise_query_by_user_id(
         db_path,
         "co_reply_network",
+        query,
+        (time_window, min_edge_weight),
+        n_processes=n_threads,
+        sqlite_functions=None,
+        user_selection_query=user_selection_query,
+        user_selection_query_parameters=user_selection_query_parameters,
+    )
+
+
+def compute_co_post_network(db_path, time_window, min_edge_weight=1, n_threads=4):
+    """
+    Compute a co-post network on the given database.
+
+    Co-post messages are the most basic unit of possible coordination:
+    people posting messages within `time_window` of each other, regardless of
+    the content or characteristics of the message. They are useful as a kind
+    of null model, because they describe the maximum possible edge weight
+    possible between two accounts.
+
+    """
+    db = lite.connect(db_path, isolation_level=None)
+
+    print("Ensuring the necessary indexes exists")
+    db.execute("create index if not exists user_time on edge(user_id, timestamp)")
+    db.execute("create index if not exists timestamp_user on edge(timestamp, user_id)")
+    db.execute("drop table if exists co_post_network")
+    db.execute(
+        """
+        create table co_post_network (
+            user_1,
+            user_2,
+            weight,
+            primary key (user_1, user_2)
+        ) without rowid
+        """
+    )
+
+    query = """
+        select
+            e_1.user_id as user_1,
+            e_2.user_id as user_2,
+            count(distinct e_1.message_id) as weight
+        from edge e_1
+        inner join edge e_2
+            on e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
+        where user_1 in (select user_id from user_id)
+        group by e_1.user_id, e_2.user_id
+        having weight >= ?2
+    """
+
+    # Optimisation - a user can never have an edge if the account doesn't have more
+    # then min_edge_weight messages
+    user_selection_query = """
+        select
+            user_id
+        from edge
+        group by user_id
+        having count(*) >= ?
+    """
+
+    user_selection_query_parameters = [min_edge_weight]
+
+    return parallise_query_by_user_id(
+        db_path,
+        "co_post_network",
         query,
         (time_window, min_edge_weight),
         n_processes=n_threads,
