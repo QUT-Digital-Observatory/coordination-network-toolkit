@@ -1,9 +1,11 @@
 import csv
 import json
 from typing import Iterable, List
+from urllib.parse import urlparse
 import zlib
 
 from twarc import ensure_flattened
+from twarc.client2 import Twarc2
 
 from coordination_network_toolkit.database import initialise_db
 
@@ -25,7 +27,7 @@ def preprocess_csv_files(db_path: str, input_filenames: List[str]):
 def preprocess_data(db_path: str, messages: Iterable):
     """
 
-    Add messages to the dataset from the specified CSV files..
+    Add messages to the dataset from the iterator of messages.
 
     Messages should be an iterator of messages with the content for each message
     in the following order:
@@ -258,3 +260,191 @@ def preprocess_twitter_v2_json_data(db_path: str, tweets: Iterable[str]):
         raise
     finally:
         db.close()
+
+
+def preprocess_twitter_v2_likes_retweets(
+    db_path: str, data_pages: Iterable[str], hydrate_client=None
+):
+    """
+    Process pages of Twitter likes/retweets from the V2 endpoints into a
+    coordination structure.
+
+    `hydrate_client` is an instance of a Twarc2 client, used to hydrate
+    usernames for the case of user_profile lookups. If not provided the username
+    column will not be present for the calls to the liked_tweets endpoint.
+
+    In this case, a "message" is a no longer a single tweet, but the act of
+    liking or retweeting a tweet by a specific user. The message id in this
+    case is then the composite key '{liked_tweet}_{liking_user_id}' or '
+    {retweeted_tweet}_{retweeting_user_id}'.
+
+    As the Twitter data in this case does not report when the like was
+    created, only the relative chronological order of likes/retweets. In
+    this case the "time" window is a logical time, with the first entry in
+    the stream being the first tweet in the function.
+
+    Assumptions:
+
+    - This relies on the Twitter API returning results in reverse chronological
+      order to construct a logical 'time' for that like relative to when the tweet was
+      posted.
+    - A call to a particular URL path (eg, the retweeting users of a specific tweet)
+      is only present once in a file. If the information is refreshed later, it needs
+      to completely replace the original timeline of likes instead.
+
+    Limitations:
+
+    - This function requires the `__twarc` metadata be present to infer the
+      structure of which tweet/user is doing the liking/retweeting or being
+      liked. This function will fail if this is missing.
+    - The data for this can only be from the liked-tweets, liking-users, and
+      retweeted-by endpoints of the V2 Twitter API.
+    - The only supported network is co_retweet using the logical time.
+    - All data from the call to a specific path need to be contiguous within
+      the incoming stream of pages. Only one type of endpoint is supported at
+      a time, you can only insert data from one of `liking-users`,
+      `liked-tweets`, or `retweeted-by` into the same database.
+    - Data will only be inserted into an empty database, no incremental updates
+      because of the logical clock.
+
+    """
+
+    db = initialise_db(db_path)
+
+    try:
+        db.execute("begin")
+
+        edge_count = list(db.execute("select count(*) from edge"))[0][0]
+
+        if edge_count:
+            raise ValueError("This preprocess function requires an empty database.")
+
+        current_path = ""
+
+        user_to_username = {}
+        seen_calls = set()
+        tw = None
+
+        for page in data_pages:
+
+            data_page = json.loads(page)
+
+            called_url = urlparse(data_page["__twarc"]["url"])
+
+            # Todo: keep track of, and detect overlapping results from
+            # different calls to the same path to raise an error.
+            if called_url.path != current_path:
+                # Reset the logical time.
+                current_logical_time = 0
+                current_path = called_url.path
+
+            url_path_components = called_url.path.split("/")
+
+            # From twarc, this is the format of the URLs for the endpoints
+            # that work with this function.
+            # f"https://api.twitter.com/2/tweets/{tweet_id}/liking_users"
+            # f"https://api.twitter.com/2/users/{user_id}/liked_tweets"
+            # f"https://api.twitter.com/2/tweets/{tweet_id}/retweeted_by"
+
+            call_type = url_path_components[-1]
+
+            if call_type not in {
+                "liking_users",
+                "liked_tweets",
+                "retweeted_by",
+            }:
+                raise ValueError(
+                    "Only data from the 'liking-users', 'liked-tweets', "
+                    "'retweeted-by' endpoints are supported for this format."
+                )
+
+            seen_calls.add(call_type)
+            if len(seen_calls) > 1:
+                raise TypeError(
+                    "Data inserted in this format can only be from one of the following endpoints, "
+                    "no mixing is allowed: 'liking-users', 'liked-tweets', 'retweeted-by'"
+                )
+
+            if call_type in {"liking_users", "retweeted_by"}:
+
+                # For this path, all of the information we need can be derived
+                # from the URL and returned profiles.
+                reference_tweet_id = url_path_components[-2]
+
+                def return_row(data_object):
+
+                    user_id = data_object["id"]
+                    username = data_object["username"]
+
+                    return (
+                        f"{reference_tweet_id}_{user_id}",
+                        user_id,
+                        username,
+                        reference_tweet_id,
+                        current_logical_time,
+                    )
+
+            else:
+                # For this path, we don't necessarily have the information
+                # about the user who's likes we're looking at.
+                reference_user_id = url_path_components[-2]
+
+                if hydrate_client and reference_user_id not in user_to_username:
+                    profile = hydrate_client.user_lookup(users=[reference_user_id])
+                    if "data" in profile:
+                        user_to_username[reference_user_id] = profile["data"][0][
+                            "username"
+                        ]
+                    else:
+                        # TODO: could actually lookup the error if the user isn't
+                        # available anymore and mark that here.
+                        user_to_username[
+                            reference_user_id
+                        ] = f"{reference_user_id}_profile_unavailable"
+
+                reference_username = user_to_username.get(
+                    reference_user_id, str(reference_user_id)
+                )
+
+                def return_row(data_object):
+
+                    reference_tweet_id = data_object["id"]
+
+                    return (
+                        f"{reference_tweet_id}_{reference_user_id}",
+                        reference_user_id,
+                        reference_username,
+                        reference_tweet_id,
+                        current_logical_time,
+                    )
+
+            for an_object in data_page["data"]:
+
+                db.execute(
+                    """
+                    insert or ignore into edge(message_id, user_id, username, repost_id, timestamp)
+                        values (?, ?, ?, ?, ?)
+                    """,
+                    return_row(an_object),
+                )
+
+                current_logical_time += 1
+
+        db.execute("commit")
+    except:
+        db.execute("rollback")
+        raise
+    finally:
+        db.close()
+
+
+def preprocess_twitter_v2_like_retweet_files(db_path: str, input_filenames: List[str]):
+    def iterate_all_pages(input_filenames):
+        for message_file in input_filenames:
+            with open(message_file, "r") as pages:
+                for page in pages:
+                    yield page
+
+            print(f"Done preprocessing {message_file} into {db_path}")
+
+    preprocess_twitter_v2_likes_retweets(db_path, iterate_all_pages(input_filenames))
