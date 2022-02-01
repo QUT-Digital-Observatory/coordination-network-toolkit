@@ -410,12 +410,16 @@ def preprocess_twitter_v2_likes_retweets(
 
                     reference_tweet_id = data_object["id"]
 
+                    # The logical time for this endpoint is always 0,
+                    # as there's no way to establish a relative ordering
+                    # with respect to a single users like behaviour, this can only
+                    # be established w.r.t. the likes on a specific tweet.
                     return (
                         f"{reference_tweet_id}_{reference_user_id}",
                         reference_user_id,
                         reference_username,
                         reference_tweet_id,
-                        current_logical_time,
+                        0,
                     )
 
             for an_object in data_page["data"]:
