@@ -36,6 +36,7 @@ from coordination_network_toolkit.compute_networks import (
 from coordination_network_toolkit.preprocess import (
     preprocess_csv_files,
     preprocess_twitter_json_files,
+    preprocess_twitter_v2_like_retweet_files,
 )
 from coordination_network_toolkit.output import write_output, output_node_csv
 from coordination_network_toolkit.urls import resolve_all_urls
@@ -90,7 +91,7 @@ def main():
     preprocess_parser.add_argument(
         "--format",
         default="csv",
-        choices=["csv", "twitter_json"],
+        choices=["csv", "twitter_json", "twitter_v2_likes_retweets"],
         help="The format of the input files, defaulting to CSV. "
         "Twitter JSON format supports both V1.1 and V2 API formats. "
         "See documentation for a list of columns expected in CSV format.",
@@ -257,6 +258,8 @@ def main():
             preprocess_csv_files(args.database, args.files)
         elif args.format == "twitter_json":
             preprocess_twitter_json_files(args.database, args.files)
+        elif args.format == "twitter_v2_likes_retweets":
+            preprocess_twitter_v2_like_retweet_files(args.database, args.files)
 
     elif args.command == "resolve_urls":
         print(f"Resolving URLs on {args.database}")
