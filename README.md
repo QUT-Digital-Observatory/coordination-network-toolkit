@@ -17,7 +17,7 @@ Fundamentally this toolkit produces networks where the nodes are accounts, and t
 
 Firstly, it includes functionality for *co-tweeting* and *co-retweeting* (Keller et al., 2019; Schafer et al., 2017), where accounts post exactly the same text (co-tweets) or repost the same post within a short time window (co-retweets). Secondly, it includes functionality for *co-link* analysis, where multiple accounts post the same URLs repeatedly and in a short time window of each other (Giglietto et al., 2020). Thirdly, it adds two new types of network types: *co-reply*, where accounts are replying to the same post repeatedly together; and *co-similarity*, where accounts post similar text (but not exact duplicates), which relaxes the strict assumption of co-tweeting. 
 
-### Five types of coordination networks
+### Types of Coordination Networks
 
 Briefly, the following network types are supported. For more information see the [documentation](docs/network_types.md)
 
