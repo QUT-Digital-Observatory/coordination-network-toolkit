@@ -40,7 +40,7 @@ def preprocess_csv_files(db_path: str, input_filenames: List[str]):
             # Skip header
             next(reader)
 
-            data = ((row[:-1], row[-1].split(" ")) for row in reader)
+            data = ((*row[:-1], row[-1].split(" ")) for row in reader)
             preprocess_data(db_path, data)
 
         print(f"Done preprocessing {message_file} into {db_path}")
