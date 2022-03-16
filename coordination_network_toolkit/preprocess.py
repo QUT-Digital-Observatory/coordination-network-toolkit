@@ -11,6 +11,26 @@ from coordination_network_toolkit.database import initialise_db
 
 
 def preprocess_csv_files(db_path: str, input_filenames: List[str]):
+    """
+    Preprocess the given list of CSV files.
+
+    The expected format is the following columns, with a header row:
+
+    - message_id: the unique identifier of the message on the platform
+    - user_id: the unique identifier of the user on the platform
+    - username: the text of the username (only used for display)
+    - repost_id: if the message is a verbatim report of another message (such as a retweet
+        or reblog), this is the identifier of that other message. Empty strings will be
+        converted to null
+    - reply_id: if the message is in reply to another message, the identifier for that other
+        message. Empty strings will be converted to null.
+    - message: the text of the message.
+    - timestamp: A timestamp in seconds for the message. The absolute offset does not matter,
+        but it needs to be consistent across all rows
+    - urls: A space delimited list of URLs (for example: "www.google.com youtu.be/123 www.facebook.com")
+
+    """
+
     for message_file in input_filenames:
         # Skip the header
         print(f"Begin preprocessing {message_file} into {db_path}")
@@ -19,7 +39,9 @@ def preprocess_csv_files(db_path: str, input_filenames: List[str]):
             reader = csv.reader(messages)
             # Skip header
             next(reader)
-            preprocess_data(db_path, reader)
+
+            data = ((row[:-1], row[-1].split(" ")) for row in reader)
+            preprocess_data(db_path, data)
 
         print(f"Done preprocessing {message_file} into {db_path}")
 
@@ -43,7 +65,7 @@ def preprocess_data(db_path: str, messages: Iterable):
     - message: the text of the message.
     - timestamp: A timestamp in seconds for the message. The absolute offset does not matter,
         but it needs to be consistent across all rows
-    - urls: A space delimited string containing all of the URLs in the message
+    - urls: A list of URLs present in the message - None will be converted to an empty list.
 
     """
 
@@ -66,7 +88,7 @@ def preprocess_data(db_path: str, messages: Iterable):
                 # This will be populated only when similarity calculations are necessary
                 None,
                 float(timestamp),
-                urls.split(" ") if urls else [],
+                urls,
             )
             for message_id, user_id, username, repost_id, reply_id, message, timestamp, urls in messages
         )
