@@ -127,7 +127,7 @@ import networkx as nx
 # the database located at /path/to/your/db - if no db file
 # exists here it will be created for you.
 db_name = '/path/to/your/db.db'
-coord_net_tk.preprocess.preprocess_csv_files(db_name, '/path/to/your/csv_file.csv')
+coord_net_tk.preprocess.preprocess_csv_files(db_name, ['/path/to/your/csv_file.csv'])
 
 # Calculate similarity network
 coord_net_tk.compute_networks.compute_co_similar_tweet(db_name, 60)
