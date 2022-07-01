@@ -12,7 +12,7 @@ from coordination_network_toolkit.database import initialise_db
 
 def preprocess_csv_files(db_path: str, input_filenames: List[str]):
     """
-    Preprocess the given list of CSV files.
+    Preprocess the given list of CSV files in UTF8 encoded text.
 
     The expected format is the following columns, with a header row:
 
@@ -35,7 +35,7 @@ def preprocess_csv_files(db_path: str, input_filenames: List[str]):
         # Skip the header
         print(f"Begin preprocessing {message_file} into {db_path}")
 
-        with open(message_file, "r") as messages:
+        with open(message_file, "r", encoding="utf-8") as messages:
             reader = csv.reader(messages)
             # Skip header
             next(reader)
@@ -119,7 +119,7 @@ def preprocess_twitter_json_files(db_path: str, input_filenames: List[str]):
     for message_file in input_filenames:
         # Skip the header
         print(f"Begin preprocessing {message_file} into {db_path}")
-        with open(message_file, "r") as tweets:
+        with open(message_file, "r", encoding="utf-8") as tweets:
             try:
                 # Try v2 format
                 preprocess_twitter_v2_json_data(db_path, tweets)
@@ -467,7 +467,7 @@ def preprocess_twitter_v2_likes_retweets(
 def preprocess_twitter_v2_like_retweet_files(db_path: str, input_filenames: List[str]):
     def iterate_all_pages(input_filenames):
         for message_file in input_filenames:
-            with open(message_file, "r") as pages:
+            with open(message_file, "r", encoding="utf-8") as pages:
                 for page in pages:
                     yield page
 
