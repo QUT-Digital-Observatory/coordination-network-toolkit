@@ -256,6 +256,7 @@ def compute_co_tweet_network(
             and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
             and e_1.repost_id is null
             and e_2.repost_id is null
+            and e_1.message_id != e_2.message_id
         where user_1 in (select user_id from user_id)
         group by e_1.user_id, e_2.user_id
         having weight >= ?2
@@ -325,6 +326,7 @@ def compute_co_reply_network(db_path, time_window, min_edge_weight=1, n_threads=
             and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
             and e_1.repost_id is null
             and e_2.repost_id is null
+            and e_1.message_id != e_2.message_id
         where user_1 in (select user_id from user_id)
         group by e_1.user_id, e_2.user_id
         having weight >= ?2
@@ -392,6 +394,7 @@ def compute_co_post_network(db_path, time_window, min_edge_weight=1, n_threads=4
         from edge e_1
         inner join edge e_2
             on e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
+            and e_1.message_id != e_2.message_id
         where user_1 in (select user_id from user_id)
         group by e_1.user_id, e_2.user_id
         having weight >= ?2
@@ -475,6 +478,7 @@ def compute_co_link_network(
                 -- Keep any row where the retweets are by different users and within n
                 -- seconds of each other.
                 and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
+                and e_1.message_id != e_2.message_id
             where user_1 in (select user_id from user_id)
             group by e_1.user_id, e_2.user_id
             having weight >= ?2
@@ -515,6 +519,7 @@ def compute_co_link_network(
             inner join message_url e_2
                 on e_1.url = e_2.url
                 and e_2.timestamp between e_1.timestamp - ?1 and e_1.timestamp + ?1
+                and e_1.message_id != e_2.message_id
             where user_1 in (select user_id from user_id)
             group by e_1.user_id, e_2.user_id
             having weight >= ?2
@@ -623,6 +628,7 @@ def compute_co_similar_tweet(
             and e_2.token_set is not null
             and similarity(e_1.token_set, e_2.token_set) >= ?3
             and user_1 in (select user_id from user_id)
+            and e_1.message_id != e_2.message_id
         group by e_1.user_id, e_2.user_id
         having weight >= ?2
     """
@@ -683,6 +689,7 @@ def compute_co_retweet_parallel(db_path, time_window, n_threads=4, min_edge_weig
             and e_2.timestamp between e_1.timestamp - ?1
                 and e_1.timestamp + ?1
             and user_1 in (select user_id from user_id)
+            and e_1.message_id != e_2.message_id
         group by e_1.user_id, e_2.user_id
         having weight >= ?
     """

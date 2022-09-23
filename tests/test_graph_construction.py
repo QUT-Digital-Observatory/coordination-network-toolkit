@@ -17,13 +17,16 @@ def test_graph_construction_workflow(tmpdir):
     settings_nodes = (
         # (Time window, min_edge_weight, loops in the output), expected nodes
         ((1, 1, False), 2),
-        ((1, 1, True), 9),  # Self loops will always include a single retweet
+        # 2 accounts retweeting each other + 1 account retweeting itself
+        ((1, 1, True), 3),
         ((1, 2, False), 0),  # No edges over the cutoff weight
-        ((1, 2, True), 5),  # 5 accounts with more than one retweet for the self loop
+        ((1, 2, True), 1),  # Only 1 account above the threshold with the self loop
         # Note that in this example, uid10 retweets a message twice - this is
         # counted as a self loop so not included in the output nodes.
         ((60, 1, False), 6),
-        ((60, 1, True), 9),  # All of the nodes should be included with self loops
+        # All of the nodes except for 11 and 12 should be included - node 11
+        # and 12 are too far apart in time to be included
+        ((60, 1, True), 7),
     )
 
     for n_threads in (1, 2, 4):
