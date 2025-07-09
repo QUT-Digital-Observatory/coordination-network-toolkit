@@ -48,6 +48,8 @@ def tokenize(text: str, tokenizer: Pattern = word_tokenizer) -> str:
 def similarity(tokens_1, tokens_2):
     set_1 = set(tokens_1.split())
     set_2 = set(tokens_2.split())
+    if len(set_1 | set_2) == 0:
+        return 0
     return len(set_1 & set_2) / len(set_1 | set_2)
 
 
